@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Tebak Angka - Balita</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎮 Tebak Angka</h1>
+            <p class="subtitle">Pilih angka yang sesuai dengan gambar!</p>
+        </header>
+
+        <main>
+            <div class="visual-container">
+                <div id="visual-display" class="visual-display"></div>
+            </div>
+
+            <div class="question-area">
+                <p class="question-text">Berapa jumlahnya?</p>
+            </div>
+
+            <div class="options-container">
+                <button class="option-btn" data-value="0">0</button>
+                <button class="option-btn" data-value="0">0</button>
+                <button class="option-btn" data-value="0">0</button>
+                <button class="option-btn" data-value="0">0</button>
+            </div>
+
+            <div class="feedback-area">
+                <div id="feedback" class="feedback hidden"></div>
+            </div>
+
+            <div class="score-area">
+                <p>Benar: <span id="score">0</span></p>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>

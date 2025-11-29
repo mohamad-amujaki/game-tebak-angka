@@ -141,6 +141,54 @@ function showFeedback(isCorrect) {
         feedbackElement.classList.add('hidden');
     }, 2000);
 }
+// Play applause sound
+function playCelebrationSound() {
+    // Check if browser supports Web Audio API
+    if (typeof AudioContext !== 'undefined' || typeof window.webkitAudioContext !== 'undefined') {
+        try {
+            const AudioContextClass = AudioContext || window.webkitAudioContext;
+            const audioContext = new AudioContextClass();
+            // Create applause sound using multiple claps
+            const duration = 1.5; // 1.5 seconds
+            const sampleRate = audioContext.sampleRate;
+            const buffer = audioContext.createBuffer(2, sampleRate * duration, sampleRate);
+            // Generate multiple claps (applause)
+            const numClaps = 8;
+            for (let clap = 0; clap < numClaps; clap++) {
+                const clapTime = (clap / numClaps) * duration + Math.random() * 0.1;
+                const clapSample = Math.floor(clapTime * sampleRate);
+                // Each clap is a short burst of noise
+                const clapDuration = 0.05; // 50ms per clap
+                const clapSamples = Math.floor(clapDuration * sampleRate);
+                for (let channel = 0; channel < 2; channel++) {
+                    const channelData = buffer.getChannelData(channel);
+                    for (let i = 0; i < clapSamples && (clapSample + i) < channelData.length; i++) {
+                        const t = i / clapSamples;
+                        // Create clap sound: white noise with envelope
+                        const noise = (Math.random() * 2 - 1) * (1 - t); // Decay envelope
+                        channelData[clapSample + i] += noise * 0.3;
+                    }
+                }
+            }
+            // Play the applause
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            // Add gain node for volume control
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = 0.5;
+            source.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            source.start(0);
+            // Clean up after playback
+            source.onended = () => {
+                audioContext.close();
+            };
+        }
+        catch (error) {
+            console.log('Audio playback error:', error);
+        }
+    }
+}
 // Trigger confetti
 function triggerConfetti() {
     const duration = 3000;
@@ -190,6 +238,7 @@ function checkAnswer(selectedValue) {
         scoreElement.textContent = gameState.score.toString();
         showFeedback(true);
         triggerConfetti();
+        playCelebrationSound();
         // Next question after 2.5 seconds
         setTimeout(() => {
             nextQuestion();

@@ -14,6 +14,24 @@
         <header>
             <h1>🎮 Tebak Angka</h1>
             <p class="subtitle">Pilih angka yang sesuai dengan gambar!</p>
+
+            <div class="stats-container">
+                <div class="stat-card score-card">
+                    <div class="stat-icon">✓</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Benar</div>
+                        <div class="stat-value" id="score">0</div>
+                    </div>
+                </div>
+
+                <div class="stat-card stars-card">
+                    <div class="stat-icon">⭐</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Bintang</div>
+                        <div class="stat-value" id="total-stars">0</div>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <div class="level-selection">
@@ -50,9 +68,14 @@
                 <div id="feedback" class="feedback hidden"></div>
             </div>
 
-            <div class="score-area">
-                <p>Benar: <span id="score">0</span></p>
+            <div class="star-rating-area">
+                <div id="star-rating" class="star-rating hidden">
+                    <span class="star">⭐</span>
+                    <span class="star">⭐</span>
+                    <span class="star">⭐</span>
+                </div>
             </div>
+
         </main>
     </div>
 

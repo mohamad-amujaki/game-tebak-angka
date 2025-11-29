@@ -20,6 +20,8 @@ interface GameState {
     score: number;
     isAnswered: boolean;
     currentLevel: Level;
+    totalStars: number;
+    questionStartTime: number;
 }
 
 let gameState: GameState = {
@@ -28,7 +30,9 @@ let gameState: GameState = {
     options: [],
     score: 0,
     isAnswered: false,
-    currentLevel: levels.easy // Default to Easy
+    currentLevel: levels.easy, // Default to Easy
+    totalStars: 0,
+    questionStartTime: 0
 };
 
 // Emoji library
@@ -55,6 +59,8 @@ const optionButtons = document.querySelectorAll('.option-btn') as NodeListOf<HTM
 const feedbackElement = document.getElementById('feedback') as HTMLElement;
 const scoreElement = document.getElementById('score') as HTMLElement;
 const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
+const starRatingElement = document.getElementById('star-rating') as HTMLElement;
+const totalStarsElement = document.getElementById('total-stars') as HTMLElement;
 
 // Generate random number between min and max (inclusive)
 function randomInt(min: number, max: number): number {
@@ -159,6 +165,15 @@ function updateOptions(options: number[]): void {
     });
 }
 
+// Update stat value with animation
+function updateStatValue(element: HTMLElement, newValue: string): void {
+    element.textContent = newValue;
+    element.classList.add('updated');
+    setTimeout(() => {
+        element.classList.remove('updated');
+    }, 500);
+}
+
 // Show feedback
 function showFeedback(isCorrect: boolean): void {
     feedbackElement.classList.remove('hidden', 'correct', 'wrong');
@@ -175,6 +190,64 @@ function showFeedback(isCorrect: boolean): void {
     setTimeout(() => {
         feedbackElement.classList.add('hidden');
     }, 2000);
+}
+
+// Calculate star rating based on response time
+function calculateStarRating(): number {
+    const responseTime = Date.now() - gameState.questionStartTime;
+    const level = gameState.currentLevel;
+
+    // Base time thresholds (in milliseconds)
+    // Easy: 10 seconds, Medium: 15 seconds, Hard: 20 seconds, Extreme: 25 seconds
+    const timeThresholds: Record<string, { three: number; two: number }> = {
+        easy: { three: 5000, two: 10000 },
+        medium: { three: 7000, two: 15000 },
+        hard: { three: 10000, two: 20000 },
+        extreme: { three: 12000, two: 25000 }
+    };
+
+    const thresholds = timeThresholds[level.name.toLowerCase()] || timeThresholds.easy;
+
+    if (responseTime <= thresholds.three) {
+        return 3; // ⭐⭐⭐
+    } else if (responseTime <= thresholds.two) {
+        return 2; // ⭐⭐
+    } else {
+        return 1; // ⭐
+    }
+}
+
+// Show star rating with animation
+function showStarRating(rating: number): void {
+    starRatingElement.classList.remove('hidden');
+    const stars = starRatingElement.querySelectorAll('.star') as NodeListOf<HTMLElement>;
+
+    // Reset all stars
+    stars.forEach(star => {
+        star.classList.remove('active', 'animate');
+        star.style.opacity = '0.3';
+    });
+
+    // Animate stars one by one
+    for (let i = 0; i < rating; i++) {
+        setTimeout(() => {
+            stars[i].classList.add('active', 'animate');
+            stars[i].style.opacity = '1';
+        }, i * 200); // Stagger animation
+    }
+
+    // Update total stars
+    gameState.totalStars += rating;
+    updateStatValue(totalStarsElement, gameState.totalStars.toString());
+
+    // Hide stars after 2.5 seconds
+    setTimeout(() => {
+        starRatingElement.classList.add('hidden');
+        stars.forEach(star => {
+            star.classList.remove('active', 'animate');
+            star.style.opacity = '0.3';
+        });
+    }, 2500);
 }
 
 // Play applause sound
@@ -322,10 +395,14 @@ function checkAnswer(selectedValue: number): void {
 
     if (isCorrect) {
         gameState.score++;
-        scoreElement.textContent = gameState.score.toString();
+        updateStatValue(scoreElement, gameState.score.toString());
         showFeedback(true);
         triggerConfetti();
         playCelebrationSound();
+
+        // Calculate and show star rating
+        const starRating = calculateStarRating();
+        showStarRating(starRating);
 
         // Next question after 2.5 seconds
         setTimeout(() => {
@@ -353,7 +430,11 @@ function setLevel(levelKey: string): void {
 
     gameState.currentLevel = level;
     gameState.score = 0;
+    gameState.totalStars = 0;
     scoreElement.textContent = '0';
+    totalStarsElement.textContent = '0';
+    scoreElement.classList.remove('updated');
+    totalStarsElement.classList.remove('updated');
 
     // Update active level button
     levelButtons.forEach(btn => {
@@ -375,6 +456,7 @@ function nextQuestion(): void {
     gameState.correctAnswer = gameState.currentCount;
     gameState.options = generateOptions(gameState.correctAnswer);
     gameState.isAnswered = false;
+    gameState.questionStartTime = Date.now(); // Start timer for star rating
 
     generateVisual(gameState.currentCount);
     updateOptions(gameState.options);

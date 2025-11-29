@@ -1,10 +1,17 @@
 "use strict";
+const levels = {
+    easy: { name: 'Easy', min: 1, max: 10 },
+    medium: { name: 'Medium', min: 11, max: 20 },
+    hard: { name: 'Hard', min: 20, max: 30 },
+    extreme: { name: 'Extreme', min: 31, max: 50 }
+};
 let gameState = {
     currentCount: 0,
     correctAnswer: 0,
     options: [],
     score: 0,
-    isAnswered: false
+    isAnswered: false,
+    currentLevel: levels.easy // Default to Easy
 };
 // Emoji library
 const emojis = [
@@ -27,6 +34,7 @@ const visualDisplay = document.getElementById('visual-display');
 const optionButtons = document.querySelectorAll('.option-btn');
 const feedbackElement = document.getElementById('feedback');
 const scoreElement = document.getElementById('score');
+const levelButtons = document.querySelectorAll('.level-btn');
 // Generate random number between min and max (inclusive)
 function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -91,13 +99,15 @@ function getRandomColor() {
 function generateOptions(correctAnswer) {
     const options = [correctAnswer];
     const usedNumbers = new Set([correctAnswer]);
+    const level = gameState.currentLevel;
     // Generate 3 distractors
     while (options.length < 4) {
         let distractor;
         // Make distractors more challenging but not too far off
-        const range = Math.max(5, Math.floor(correctAnswer * 0.3));
-        const min = Math.max(1, correctAnswer - range);
-        const max = Math.min(50, correctAnswer + range);
+        // Use level range to constrain distractors
+        const range = Math.max(3, Math.floor((level.max - level.min) * 0.2));
+        const min = Math.max(level.min, correctAnswer - range);
+        const max = Math.min(level.max, correctAnswer + range);
         do {
             distractor = randomInt(min, max);
         } while (usedNumbers.has(distractor));
@@ -197,9 +207,30 @@ function checkAnswer(selectedValue) {
         }, 2000);
     }
 }
+// Set level and reset game
+function setLevel(levelKey) {
+    const level = levels[levelKey];
+    if (!level)
+        return;
+    gameState.currentLevel = level;
+    gameState.score = 0;
+    scoreElement.textContent = '0';
+    // Update active level button
+    levelButtons.forEach(btn => {
+        if (btn.dataset.level === levelKey) {
+            btn.classList.add('active');
+        }
+        else {
+            btn.classList.remove('active');
+        }
+    });
+    // Generate new question with new level
+    nextQuestion();
+}
 // Generate new question
 function nextQuestion() {
-    gameState.currentCount = randomInt(1, 50);
+    const level = gameState.currentLevel;
+    gameState.currentCount = randomInt(level.min, level.max);
     gameState.correctAnswer = gameState.currentCount;
     gameState.options = generateOptions(gameState.correctAnswer);
     gameState.isAnswered = false;
@@ -213,6 +244,15 @@ function nextQuestion() {
 }
 // Initialize game
 function initGame() {
+    // Add event listeners to level buttons
+    levelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const levelKey = btn.dataset.level;
+            if (levelKey) {
+                setLevel(levelKey);
+            }
+        });
+    });
     // Add event listeners to option buttons
     optionButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -220,8 +260,8 @@ function initGame() {
             checkAnswer(value);
         });
     });
-    // Start first question
-    nextQuestion();
+    // Set default level (Easy) and start first question
+    setLevel('easy');
 }
 // Start game when DOM is loaded
 if (document.readyState === 'loading') {

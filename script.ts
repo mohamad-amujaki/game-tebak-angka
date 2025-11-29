@@ -1,3 +1,17 @@
+// Level configuration
+interface Level {
+    name: string;
+    min: number;
+    max: number;
+}
+
+const levels: Record<string, Level> = {
+    easy: { name: 'Easy', min: 1, max: 10 },
+    medium: { name: 'Medium', min: 11, max: 20 },
+    hard: { name: 'Hard', min: 20, max: 30 },
+    extreme: { name: 'Extreme', min: 31, max: 50 }
+};
+
 // Game state
 interface GameState {
     currentCount: number;
@@ -5,6 +19,7 @@ interface GameState {
     options: number[];
     score: number;
     isAnswered: boolean;
+    currentLevel: Level;
 }
 
 let gameState: GameState = {
@@ -12,7 +27,8 @@ let gameState: GameState = {
     correctAnswer: 0,
     options: [],
     score: 0,
-    isAnswered: false
+    isAnswered: false,
+    currentLevel: levels.easy // Default to Easy
 };
 
 // Emoji library
@@ -38,6 +54,7 @@ const visualDisplay = document.getElementById('visual-display') as HTMLElement;
 const optionButtons = document.querySelectorAll('.option-btn') as NodeListOf<HTMLButtonElement>;
 const feedbackElement = document.getElementById('feedback') as HTMLElement;
 const scoreElement = document.getElementById('score') as HTMLElement;
+const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
 
 // Generate random number between min and max (inclusive)
 function randomInt(min: number, max: number): number {
@@ -109,15 +126,17 @@ function getRandomColor(): string {
 function generateOptions(correctAnswer: number): number[] {
     const options: number[] = [correctAnswer];
     const usedNumbers = new Set([correctAnswer]);
+    const level = gameState.currentLevel;
 
     // Generate 3 distractors
     while (options.length < 4) {
         let distractor: number;
 
         // Make distractors more challenging but not too far off
-        const range = Math.max(5, Math.floor(correctAnswer * 0.3));
-        const min = Math.max(1, correctAnswer - range);
-        const max = Math.min(50, correctAnswer + range);
+        // Use level range to constrain distractors
+        const range = Math.max(3, Math.floor((level.max - level.min) * 0.2));
+        const min = Math.max(level.min, correctAnswer - range);
+        const max = Math.min(level.max, correctAnswer + range);
 
         do {
             distractor = randomInt(min, max);
@@ -234,9 +253,32 @@ function checkAnswer(selectedValue: number): void {
     }
 }
 
+// Set level and reset game
+function setLevel(levelKey: string): void {
+    const level = levels[levelKey];
+    if (!level) return;
+
+    gameState.currentLevel = level;
+    gameState.score = 0;
+    scoreElement.textContent = '0';
+
+    // Update active level button
+    levelButtons.forEach(btn => {
+        if (btn.dataset.level === levelKey) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Generate new question with new level
+    nextQuestion();
+}
+
 // Generate new question
 function nextQuestion(): void {
-    gameState.currentCount = randomInt(1, 50);
+    const level = gameState.currentLevel;
+    gameState.currentCount = randomInt(level.min, level.max);
     gameState.correctAnswer = gameState.currentCount;
     gameState.options = generateOptions(gameState.correctAnswer);
     gameState.isAnswered = false;
@@ -253,6 +295,16 @@ function nextQuestion(): void {
 
 // Initialize game
 function initGame(): void {
+    // Add event listeners to level buttons
+    levelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const levelKey = btn.dataset.level;
+            if (levelKey) {
+                setLevel(levelKey);
+            }
+        });
+    });
+
     // Add event listeners to option buttons
     optionButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -261,8 +313,8 @@ function initGame(): void {
         });
     });
 
-    // Start first question
-    nextQuestion();
+    // Set default level (Easy) and start first question
+    setLevel('easy');
 }
 
 // Start game when DOM is loaded

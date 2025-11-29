@@ -202,10 +202,68 @@ body {
     opacity: 1;
 }
 
+.timer-buttons-modal {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.timer-btn-modal {
+    background: white;
+    border: 3px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #666;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.timer-btn-modal:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.timer-btn-modal.active {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
+    color: white;
+    border-color: #4ECDC4;
+}
+
 .level-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+.stop-game-btn {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stop-game-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.5);
+}
+
+.stop-game-btn:active {
+    transform: translateY(0);
 }
 
 /* End Game Modal Styles */
@@ -361,70 +419,6 @@ h1 {
     font-weight: 700;
 }
 
-.timer-setting-btn {
-    background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
-    color: white;
-    border: none;
-    border-radius: 12px;
-    padding: 10px 16px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(78, 205, 196, 0.3);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.timer-setting-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(78, 205, 196, 0.5);
-}
-
-.timer-setting-dropdown {
-    position: absolute;
-    top: 80px;
-    right: 40px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    padding: 8px;
-    display: none;
-    flex-direction: column;
-    gap: 4px;
-    z-index: 100;
-    min-width: 150px;
-}
-
-.timer-setting-dropdown.show {
-    display: flex;
-}
-
-.timer-option {
-    background: #f8f9fa;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 10px 16px;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #333;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-align: left;
-}
-
-.timer-option:hover {
-    background: #667eea;
-    color: white;
-    border-color: #667eea;
-}
-
-.timer-option.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-color: #667eea;
-}
 
 .subtitle {
     font-size: 1.2rem;
@@ -996,16 +990,20 @@ h1 {
         font-size: 2rem;
     }
 
-    .timer-setting-btn {
+    .stop-game-btn {
         font-size: 0.8rem;
         padding: 8px 12px;
         align-self: flex-end;
     }
 
-    .timer-setting-dropdown {
-        top: 120px;
-        right: 20px;
-        min-width: 120px;
+    .timer-buttons-modal {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+
+    .timer-btn-modal {
+        padding: 10px 8px;
+        font-size: 0.8rem;
     }
 
     .timer-option-btn {

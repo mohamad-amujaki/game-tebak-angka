@@ -8,7 +8,6 @@ interface Level {
 // Player data interface
 interface PlayerData {
     name: string;
-    age: number;
     totalStars: number;
     lastPlayed: string;
 }
@@ -66,12 +65,15 @@ let gameState: GameState = {
 let selectedLevel: string = 'easy';
 
 let timerState: TimerState = {
-    duration: 10, // Default 10 minutes
-    timeLeft: 600, // 10 minutes in seconds
+    duration: 5, // Default 5 minutes
+    timeLeft: 300, // 5 minutes in seconds
     isRunning: false,
     startTime: 0,
     intervalId: null
 };
+
+// Selected timer duration from modal (will be set before game starts)
+let selectedTimerDuration: number = 5;
 
 // Emoji library
 const emojis: string[] = [
@@ -104,18 +106,19 @@ const playerModal = document.getElementById('player-modal') as HTMLElement;
 const gameContainer = document.getElementById('game-container') as HTMLElement;
 const playerForm = document.getElementById('player-form') as HTMLFormElement;
 const playerNameDisplay = document.getElementById('player-name-display') as HTMLElement;
-const timerSettingBtn = document.getElementById('timer-setting-btn') as HTMLElement;
-const timerSettingDropdown = document.getElementById('timer-setting-dropdown') as HTMLElement;
-const timerSettingDisplay = document.getElementById('timer-setting-display') as HTMLElement;
 const timerDisplay = document.getElementById('timer-display') as HTMLElement;
 const timerCard = document.getElementById('timer-card') as HTMLElement;
 const endGameModal = document.getElementById('end-game-modal') as HTMLElement;
+const endGameTitle = document.getElementById('end-game-title') as HTMLElement;
+const endTime = document.getElementById('end-time') as HTMLElement;
 const endAttempts = document.getElementById('end-attempts') as HTMLElement;
 const endCorrect = document.getElementById('end-correct') as HTMLElement;
 const endWrong = document.getElementById('end-wrong') as HTMLElement;
 const endStars = document.getElementById('end-stars') as HTMLElement;
 const backToMenuBtn = document.getElementById('back-to-menu-btn') as HTMLElement;
+const stopGameBtn = document.getElementById('stop-game-btn') as HTMLElement;
 const modalLevelButtons = document.querySelectorAll('.level-btn-modal') as NodeListOf<HTMLButtonElement>;
+const modalTimerButtons = document.querySelectorAll('.timer-btn-modal') as NodeListOf<HTMLButtonElement>;
 
 // Player data
 let playerData: PlayerData | null = null;
@@ -245,10 +248,9 @@ function loadPlayerData(): PlayerData | null {
     return null;
 }
 
-function createPlayerData(name: string, age: number): PlayerData {
+function createPlayerData(name: string): PlayerData {
     return {
         name: name,
-        age: age,
         totalStars: 0,
         lastPlayed: new Date().toISOString()
     };
@@ -265,25 +267,8 @@ function setTimerDuration(minutes: number): void {
     timerState.duration = minutes;
     timerState.timeLeft = minutes * 60;
 
-    if (timerSettingDisplay) {
-        timerSettingDisplay.textContent = `${minutes} menit`;
-    }
-
     if (timerDisplay) {
         timerDisplay.textContent = formatTime(timerState.timeLeft);
-    }
-
-    // Update active option
-    if (timerSettingDropdown) {
-        const options = timerSettingDropdown.querySelectorAll('.timer-option');
-        options.forEach(opt => {
-            const optMinutes = parseInt(opt.getAttribute('data-minutes') || '0');
-            if (optMinutes === minutes) {
-                opt.classList.add('active');
-            } else {
-                opt.classList.remove('active');
-            }
-        });
     }
 }
 
@@ -347,8 +332,26 @@ function getGameStats(): GameStats {
     };
 }
 
-function showEndGameModal(): void {
+function calculatePlayTime(): number {
+    if (timerState.startTime > 0) {
+        return Math.floor((Date.now() - timerState.startTime) / 1000);
+    }
+    return 0;
+}
+
+function showEndGameModal(isTimeUp: boolean = true): void {
     const stats = getGameStats();
+    const playTime = calculatePlayTime();
+
+    // Update title based on how game ended
+    if (endGameTitle) {
+        endGameTitle.textContent = isTimeUp ? '⏰ Waktu Habis!' : '⏹️ Permainan Dihentikan';
+    }
+
+    // Display play time
+    if (endTime) {
+        endTime.textContent = formatTime(playTime);
+    }
 
     if (endAttempts) {
         endAttempts.textContent = stats.attempts.toString();
@@ -370,7 +373,17 @@ function showEndGameModal(): void {
 
 function endGame(): void {
     stopTimer();
-    showEndGameModal();
+    showEndGameModal(true);
+
+    // Disable all buttons
+    optionButtons.forEach(btn => {
+        btn.disabled = true;
+    });
+}
+
+function stopGame(): void {
+    stopTimer();
+    showEndGameModal(false);
 
     // Disable all buttons
     optionButtons.forEach(btn => {
@@ -412,8 +425,7 @@ function resetGameWithTimer(minutes: number): void {
     // Start new question
     nextQuestion();
 
-    // Start timer
-    startTimer();
+    // Timer will start when user answers first question
 }
 
 // Update stat value with animation
@@ -633,6 +645,11 @@ function triggerConfetti(): void {
 function checkAnswer(selectedValue: number): void {
     if (gameState.isAnswered) return;
 
+    // Start timer on first answer
+    if (!timerState.isRunning && timerState.timeLeft > 0) {
+        startTimer();
+    }
+
     gameState.isAnswered = true;
     const isCorrect = selectedValue === gameState.correctAnswer;
 
@@ -729,14 +746,9 @@ function nextQuestion(): void {
 // Reset player form
 function resetPlayerForm(): void {
     const nameInput = document.getElementById('player-name') as HTMLInputElement;
-    const ageInput = document.getElementById('player-age') as HTMLInputElement;
 
     if (nameInput) {
         nameInput.value = '';
-    }
-
-    if (ageInput) {
-        ageInput.value = '';
     }
 
     // Reset level selection to default (Easy)
@@ -750,6 +762,20 @@ function resetPlayerForm(): void {
     }
 
     selectedLevel = 'easy';
+
+    // Reset timer selection to default (5 minutes)
+    if (modalTimerButtons.length > 0) {
+        modalTimerButtons.forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        const defaultTimerBtn = document.getElementById('modal-timer-5');
+        if (defaultTimerBtn) {
+            defaultTimerBtn.classList.add('active');
+        }
+
+        selectedTimerDuration = 5;
+    }
 }
 
 // Back to main menu
@@ -790,11 +816,10 @@ function handlePlayerFormSubmit(event: Event): void {
 
     const formData = new FormData(playerForm);
     const name = (formData.get('name') as string).trim();
-    const age = parseInt(formData.get('age') as string);
 
-    if (name && age > 0) {
+    if (name) {
         // Create or update player data
-        playerData = createPlayerData(name, age);
+        playerData = createPlayerData(name);
 
         // Update player name display
         if (playerNameDisplay) {
@@ -806,6 +831,9 @@ function handlePlayerFormSubmit(event: Event): void {
         if (totalStarsElement) {
             totalStarsElement.textContent = '0';
         }
+
+        // Set timer duration from selected value
+        setTimerDuration(selectedTimerDuration);
 
         // Save to localStorage (with reset stars)
         savePlayerData();
@@ -828,44 +856,10 @@ function initGameLogic(): void {
     if (gameLogicInitialized) return;
     gameLogicInitialized = true;
 
-    // Timer setting button click
-    if (timerSettingBtn) {
-        timerSettingBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (timerSettingDropdown) {
-                timerSettingDropdown.classList.toggle('show');
-            }
-        });
-    }
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
-        if (timerSettingBtn && timerSettingDropdown &&
-            !timerSettingBtn.contains(e.target as Node) &&
-            !timerSettingDropdown.contains(e.target as Node)) {
-            timerSettingDropdown.classList.remove('show');
-        }
-    });
-
-    // Timer option clicks
-    if (timerSettingDropdown) {
-        const timerOptions = timerSettingDropdown.querySelectorAll('.timer-option');
-        timerOptions.forEach(opt => {
-            opt.addEventListener('click', () => {
-                const minutes = parseInt(opt.getAttribute('data-minutes') || '10');
-                setTimerDuration(minutes);
-                timerSettingDropdown.classList.remove('show');
-
-                // Reset timer if game hasn't started, or restart if running
-                if (!timerState.isRunning) {
-                    resetTimer();
-                } else {
-                    // If timer is running, restart with new duration
-                    stopTimer();
-                    setTimerDuration(minutes);
-                    startTimer();
-                }
-            });
+    // Stop game button
+    if (stopGameBtn) {
+        stopGameBtn.addEventListener('click', () => {
+            stopGame();
         });
     }
 
@@ -902,18 +896,10 @@ function initGameLogic(): void {
         });
     });
 
-    // Initialize timer display
-    if (timerDisplay && timerSettingDisplay) {
-        setTimerDuration(10);
-    }
+    // Set selected level and start first question
+    setLevel(selectedLevel);
 
-    // Set default level (Easy) and start first question
-    setLevel('easy');
-
-    // Start timer when game starts (only if not already running)
-    if (timerDisplay && !timerState.isRunning) {
-        startTimer();
-    }
+    // Timer will start when user answers first question
 }
 
 // Initialize app

@@ -39,6 +39,12 @@ const scoreElement = document.getElementById('score');
 const levelButtons = document.querySelectorAll('.level-btn');
 const starRatingElement = document.getElementById('star-rating');
 const totalStarsElement = document.getElementById('total-stars');
+const playerModal = document.getElementById('player-modal');
+const gameContainer = document.getElementById('game-container');
+const playerForm = document.getElementById('player-form');
+const playerNameDisplay = document.getElementById('player-name-display');
+// Player data
+let playerData = null;
 // Generate random number between min and max (inclusive)
 function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -129,6 +135,35 @@ function updateOptions(options) {
         btn.disabled = false;
     });
 }
+// LocalStorage functions
+function savePlayerData() {
+    if (playerData) {
+        playerData.totalStars = gameState.totalStars;
+        playerData.lastPlayed = new Date().toISOString();
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+    }
+}
+function loadPlayerData() {
+    const saved = localStorage.getItem('playerData');
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        }
+        catch (e) {
+            console.error('Error loading player data:', e);
+            return null;
+        }
+    }
+    return null;
+}
+function createPlayerData(name, age) {
+    return {
+        name: name,
+        age: age,
+        totalStars: 0,
+        lastPlayed: new Date().toISOString()
+    };
+}
 // Update stat value with animation
 function updateStatValue(element, newValue) {
     element.textContent = newValue;
@@ -195,6 +230,8 @@ function showStarRating(rating) {
     // Update total stars
     gameState.totalStars += rating;
     updateStatValue(totalStarsElement, gameState.totalStars.toString());
+    // Save to localStorage
+    savePlayerData();
     // Hide stars after 2.5 seconds
     setTimeout(() => {
         starRatingElement.classList.add('hidden');
@@ -358,9 +395,21 @@ function setLevel(levelKey) {
         return;
     gameState.currentLevel = level;
     gameState.score = 0;
-    gameState.totalStars = 0;
+    // Load total stars from localStorage if player exists
+    if (playerData) {
+        const savedData = loadPlayerData();
+        if (savedData && savedData.name.toLowerCase() === playerData.name.toLowerCase()) {
+            gameState.totalStars = savedData.totalStars;
+        }
+        else {
+            gameState.totalStars = 0;
+        }
+    }
+    else {
+        gameState.totalStars = 0;
+    }
     scoreElement.textContent = '0';
-    totalStarsElement.textContent = '0';
+    totalStarsElement.textContent = gameState.totalStars.toString();
     scoreElement.classList.remove('updated');
     totalStarsElement.classList.remove('updated');
     // Update active level button
@@ -391,8 +440,36 @@ function nextQuestion() {
         btn.disabled = false;
     });
 }
-// Initialize game
-function initGame() {
+// Handle player form submission
+function handlePlayerFormSubmit(event) {
+    event.preventDefault();
+    const formData = new FormData(playerForm);
+    const name = formData.get('name').trim();
+    const age = parseInt(formData.get('age'));
+    if (name && age > 0) {
+        // Create or update player data
+        playerData = createPlayerData(name, age);
+        // Update player name display
+        if (playerNameDisplay) {
+            playerNameDisplay.textContent = name;
+        }
+        // Load existing stars if player exists
+        const existingData = loadPlayerData();
+        if (existingData && existingData.name.toLowerCase() === name.toLowerCase()) {
+            gameState.totalStars = existingData.totalStars;
+            totalStarsElement.textContent = existingData.totalStars.toString();
+        }
+        // Save to localStorage
+        savePlayerData();
+        // Hide modal and show game
+        playerModal.style.display = 'none';
+        gameContainer.style.display = 'block';
+        // Initialize game
+        initGameLogic();
+    }
+}
+// Initialize game logic
+function initGameLogic() {
     // Add event listeners to level buttons
     levelButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -412,10 +489,38 @@ function initGame() {
     // Set default level (Easy) and start first question
     setLevel('easy');
 }
-// Start game when DOM is loaded
+// Initialize app
+function initApp() {
+    // Check if player data exists
+    const savedData = loadPlayerData();
+    if (savedData) {
+        // Load existing player data
+        playerData = savedData;
+        gameState.totalStars = savedData.totalStars;
+        // Update player name display if game container is visible
+        if (playerNameDisplay && gameContainer.style.display !== 'none') {
+            playerNameDisplay.textContent = savedData.name;
+        }
+        // Show modal to confirm or update
+        playerModal.style.display = 'flex';
+        const nameInput = document.getElementById('player-name');
+        const ageInput = document.getElementById('player-age');
+        if (nameInput && ageInput) {
+            nameInput.value = savedData.name;
+            ageInput.value = savedData.age.toString();
+        }
+    }
+    else {
+        // Show modal for new player
+        playerModal.style.display = 'flex';
+    }
+    // Add form submit handler
+    playerForm.addEventListener('submit', handlePlayerFormSubmit);
+}
+// Start app when DOM is loaded
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initGame);
+    document.addEventListener('DOMContentLoaded', initApp);
 }
 else {
-    initGame();
+    initApp();
 }

@@ -4,18 +4,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Tebak Angka - Balita</title>
+    <title>Game Tebak Angka - Game Interaktif untuk Anak Indonesia</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
 </head>
 
 <body>
-    <div class="container">
+    <!-- Player Info Modal -->
+    <div id="player-modal" class="modal">
+        <div class="modal-content">
+            <h2>👶 Data Anak</h2>
+            <p class="modal-subtitle">Masukkan nama dan usia untuk memulai permainan</p>
+            <form id="player-form">
+                <div class="form-group">
+                    <label for="player-name">Nama Anak:</label>
+                    <input type="text" id="player-name" name="name" placeholder="Masukkan nama" required minlength="2"
+                        maxlength="20">
+                </div>
+                <div class="form-group">
+                    <label for="player-age">Usia:</label>
+                    <input type="number" id="player-age" name="age" placeholder="Usia" required min="1" max="10">
+                </div>
+                <button type="submit" class="submit-btn">Mulai Bermain 🎮</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="container" id="game-container" style="display: none;">
         <header>
             <h1>🎮 Tebak Angka</h1>
             <p class="subtitle">Pilih angka yang sesuai dengan gambar!</p>
 
             <div class="stats-container">
+                <div class="stat-card player-card">
+                    <div class="stat-icon">👶</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Nama</div>
+                        <div class="stat-value player-name-value" id="player-name-display">Anak</div>
+                    </div>
+                </div>
+
                 <div class="stat-card score-card">
                     <div class="stat-icon">✓</div>
                     <div class="stat-content">

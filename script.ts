@@ -5,6 +5,14 @@ interface Level {
     max: number;
 }
 
+// Player data interface
+interface PlayerData {
+    name: string;
+    age: number;
+    totalStars: number;
+    lastPlayed: string;
+}
+
 const levels: Record<string, Level> = {
     easy: { name: 'Easy', min: 1, max: 10 },
     medium: { name: 'Medium', min: 11, max: 20 },
@@ -61,6 +69,13 @@ const scoreElement = document.getElementById('score') as HTMLElement;
 const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
 const starRatingElement = document.getElementById('star-rating') as HTMLElement;
 const totalStarsElement = document.getElementById('total-stars') as HTMLElement;
+const playerModal = document.getElementById('player-modal') as HTMLElement;
+const gameContainer = document.getElementById('game-container') as HTMLElement;
+const playerForm = document.getElementById('player-form') as HTMLFormElement;
+const playerNameDisplay = document.getElementById('player-name-display') as HTMLElement;
+
+// Player data
+let playerData: PlayerData | null = null;
 
 // Generate random number between min and max (inclusive)
 function randomInt(min: number, max: number): number {
@@ -165,6 +180,37 @@ function updateOptions(options: number[]): void {
     });
 }
 
+// LocalStorage functions
+function savePlayerData(): void {
+    if (playerData) {
+        playerData.totalStars = gameState.totalStars;
+        playerData.lastPlayed = new Date().toISOString();
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+    }
+}
+
+function loadPlayerData(): PlayerData | null {
+    const saved = localStorage.getItem('playerData');
+    if (saved) {
+        try {
+            return JSON.parse(saved) as PlayerData;
+        } catch (e) {
+            console.error('Error loading player data:', e);
+            return null;
+        }
+    }
+    return null;
+}
+
+function createPlayerData(name: string, age: number): PlayerData {
+    return {
+        name: name,
+        age: age,
+        totalStars: 0,
+        lastPlayed: new Date().toISOString()
+    };
+}
+
 // Update stat value with animation
 function updateStatValue(element: HTMLElement, newValue: string): void {
     element.textContent = newValue;
@@ -239,6 +285,9 @@ function showStarRating(rating: number): void {
     // Update total stars
     gameState.totalStars += rating;
     updateStatValue(totalStarsElement, gameState.totalStars.toString());
+
+    // Save to localStorage
+    savePlayerData();
 
     // Hide stars after 2.5 seconds
     setTimeout(() => {
@@ -430,9 +479,21 @@ function setLevel(levelKey: string): void {
 
     gameState.currentLevel = level;
     gameState.score = 0;
-    gameState.totalStars = 0;
+
+    // Load total stars from localStorage if player exists
+    if (playerData) {
+        const savedData = loadPlayerData();
+        if (savedData && savedData.name.toLowerCase() === playerData.name.toLowerCase()) {
+            gameState.totalStars = savedData.totalStars;
+        } else {
+            gameState.totalStars = 0;
+        }
+    } else {
+        gameState.totalStars = 0;
+    }
+
     scoreElement.textContent = '0';
-    totalStarsElement.textContent = '0';
+    totalStarsElement.textContent = gameState.totalStars.toString();
     scoreElement.classList.remove('updated');
     totalStarsElement.classList.remove('updated');
 
@@ -468,8 +529,44 @@ function nextQuestion(): void {
     });
 }
 
-// Initialize game
-function initGame(): void {
+// Handle player form submission
+function handlePlayerFormSubmit(event: Event): void {
+    event.preventDefault();
+
+    const formData = new FormData(playerForm);
+    const name = (formData.get('name') as string).trim();
+    const age = parseInt(formData.get('age') as string);
+
+    if (name && age > 0) {
+        // Create or update player data
+        playerData = createPlayerData(name, age);
+
+        // Update player name display
+        if (playerNameDisplay) {
+            playerNameDisplay.textContent = name;
+        }
+
+        // Load existing stars if player exists
+        const existingData = loadPlayerData();
+        if (existingData && existingData.name.toLowerCase() === name.toLowerCase()) {
+            gameState.totalStars = existingData.totalStars;
+            totalStarsElement.textContent = existingData.totalStars.toString();
+        }
+
+        // Save to localStorage
+        savePlayerData();
+
+        // Hide modal and show game
+        playerModal.style.display = 'none';
+        gameContainer.style.display = 'block';
+
+        // Initialize game
+        initGameLogic();
+    }
+}
+
+// Initialize game logic
+function initGameLogic(): void {
     // Add event listeners to level buttons
     levelButtons.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -492,10 +589,42 @@ function initGame(): void {
     setLevel('easy');
 }
 
-// Start game when DOM is loaded
+// Initialize app
+function initApp(): void {
+    // Check if player data exists
+    const savedData = loadPlayerData();
+
+    if (savedData) {
+        // Load existing player data
+        playerData = savedData;
+        gameState.totalStars = savedData.totalStars;
+
+        // Update player name display if game container is visible
+        if (playerNameDisplay && gameContainer.style.display !== 'none') {
+            playerNameDisplay.textContent = savedData.name;
+        }
+
+        // Show modal to confirm or update
+        playerModal.style.display = 'flex';
+        const nameInput = document.getElementById('player-name') as HTMLInputElement;
+        const ageInput = document.getElementById('player-age') as HTMLInputElement;
+        if (nameInput && ageInput) {
+            nameInput.value = savedData.name;
+            ageInput.value = savedData.age.toString();
+        }
+    } else {
+        // Show modal for new player
+        playerModal.style.display = 'flex';
+    }
+
+    // Add form submit handler
+    playerForm.addEventListener('submit', handlePlayerFormSubmit);
+}
+
+// Start app when DOM is loaded
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initGame);
+    document.addEventListener('DOMContentLoaded', initApp);
 } else {
-    initGame();
+    initApp();
 }
 

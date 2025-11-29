@@ -234,6 +234,40 @@ function playCelebrationSound(): void {
     }
 }
 
+// Play wrong answer sound
+function playWrongAnswerSound(): void {
+    // Check if browser supports speech synthesis
+    if ('speechSynthesis' in window) {
+        const messages = ['Oops, coba lagi!', 'Hampir benar, coba sekali lagi'];
+        const randomMessage = messages[randomInt(0, messages.length - 1)];
+
+        const speak = () => {
+            const utterance = new SpeechSynthesisUtterance(randomMessage);
+            utterance.volume = 0.8;
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+
+            // Use Indonesian voice if available, otherwise use default
+            const voices = speechSynthesis.getVoices();
+            const indonesianVoice = voices.find(voice =>
+                voice.lang.includes('id') || voice.lang.includes('ID')
+            );
+            if (indonesianVoice) {
+                utterance.voice = indonesianVoice;
+            }
+
+            speechSynthesis.speak(utterance);
+        };
+
+        // Ensure voices are loaded
+        if (speechSynthesis.getVoices().length > 0) {
+            speak();
+        } else {
+            speechSynthesis.addEventListener('voiceschanged', speak, { once: true });
+        }
+    }
+}
+
 // Trigger confetti
 function triggerConfetti(): void {
     const duration = 3000;
@@ -299,6 +333,7 @@ function checkAnswer(selectedValue: number): void {
         }, 2500);
     } else {
         showFeedback(false);
+        playWrongAnswerSound();
 
         // Re-enable after feedback
         setTimeout(() => {

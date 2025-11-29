@@ -13,7 +13,17 @@ let gameState = {
     isAnswered: false,
     currentLevel: levels.easy, // Default to Easy
     totalStars: 0,
-    questionStartTime: 0
+    questionStartTime: 0,
+    wrongAnswers: 0
+};
+// Selected level from modal (will be set before game starts)
+let selectedLevel = 'easy';
+let timerState = {
+    duration: 10, // Default 10 minutes
+    timeLeft: 600, // 10 minutes in seconds
+    isRunning: false,
+    startTime: 0,
+    intervalId: null
 };
 // Emoji library
 const emojis = [
@@ -36,13 +46,26 @@ const visualDisplay = document.getElementById('visual-display');
 const optionButtons = document.querySelectorAll('.option-btn');
 const feedbackElement = document.getElementById('feedback');
 const scoreElement = document.getElementById('score');
-const levelButtons = document.querySelectorAll('.level-btn');
+// Level buttons removed - level is selected at the beginning
+// const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
 const starRatingElement = document.getElementById('star-rating');
 const totalStarsElement = document.getElementById('total-stars');
 const playerModal = document.getElementById('player-modal');
 const gameContainer = document.getElementById('game-container');
 const playerForm = document.getElementById('player-form');
 const playerNameDisplay = document.getElementById('player-name-display');
+const timerSettingBtn = document.getElementById('timer-setting-btn');
+const timerSettingDropdown = document.getElementById('timer-setting-dropdown');
+const timerSettingDisplay = document.getElementById('timer-setting-display');
+const timerDisplay = document.getElementById('timer-display');
+const timerCard = document.getElementById('timer-card');
+const endGameModal = document.getElementById('end-game-modal');
+const endAttempts = document.getElementById('end-attempts');
+const endCorrect = document.getElementById('end-correct');
+const endWrong = document.getElementById('end-wrong');
+const endStars = document.getElementById('end-stars');
+const backToMenuBtn = document.getElementById('back-to-menu-btn');
+const modalLevelButtons = document.querySelectorAll('.level-btn-modal');
 // Player data
 let playerData = null;
 // Generate random number between min and max (inclusive)
@@ -163,6 +186,140 @@ function createPlayerData(name, age) {
         totalStars: 0,
         lastPlayed: new Date().toISOString()
     };
+}
+// Timer functions
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+function setTimerDuration(minutes) {
+    timerState.duration = minutes;
+    timerState.timeLeft = minutes * 60;
+    if (timerSettingDisplay) {
+        timerSettingDisplay.textContent = `${minutes} menit`;
+    }
+    if (timerDisplay) {
+        timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+    // Update active option
+    if (timerSettingDropdown) {
+        const options = timerSettingDropdown.querySelectorAll('.timer-option');
+        options.forEach(opt => {
+            const optMinutes = parseInt(opt.getAttribute('data-minutes') || '0');
+            if (optMinutes === minutes) {
+                opt.classList.add('active');
+            }
+            else {
+                opt.classList.remove('active');
+            }
+        });
+    }
+}
+function startTimer() {
+    if (timerState.isRunning)
+        return;
+    timerState.isRunning = true;
+    timerState.startTime = Date.now();
+    timerState.intervalId = window.setInterval(() => {
+        timerState.timeLeft--;
+        if (timerDisplay) {
+            timerDisplay.textContent = formatTime(timerState.timeLeft);
+        }
+        // Visual warning when time < 1 minute
+        if (timerCard && timerState.timeLeft <= 60) {
+            timerCard.classList.add('warning');
+        }
+        // Stop timer when time runs out
+        if (timerState.timeLeft <= 0) {
+            stopTimer();
+            endGame();
+        }
+    }, 1000);
+}
+function stopTimer() {
+    if (timerState.intervalId !== null) {
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+    }
+    timerState.isRunning = false;
+    if (timerCard) {
+        timerCard.classList.remove('warning');
+    }
+}
+function resetTimer() {
+    stopTimer();
+    timerState.timeLeft = timerState.duration * 60;
+    if (timerDisplay) {
+        timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+    if (timerCard) {
+        timerCard.classList.remove('warning');
+    }
+}
+function getGameStats() {
+    return {
+        attempts: gameState.score + gameState.wrongAnswers,
+        correct: gameState.score,
+        wrong: gameState.wrongAnswers,
+        stars: gameState.totalStars
+    };
+}
+function showEndGameModal() {
+    const stats = getGameStats();
+    if (endAttempts) {
+        endAttempts.textContent = stats.attempts.toString();
+    }
+    if (endCorrect) {
+        endCorrect.textContent = stats.correct.toString();
+    }
+    if (endWrong) {
+        endWrong.textContent = stats.wrong.toString();
+    }
+    if (endStars) {
+        endStars.textContent = stats.stars.toString();
+    }
+    if (endGameModal) {
+        endGameModal.style.display = 'flex';
+    }
+}
+function endGame() {
+    stopTimer();
+    showEndGameModal();
+    // Disable all buttons
+    optionButtons.forEach(btn => {
+        btn.disabled = true;
+    });
+}
+function resetGameWithTimer(minutes) {
+    // Stop current timer if running
+    stopTimer();
+    // Reset timer
+    setTimerDuration(minutes);
+    resetTimer();
+    // Reset game state
+    gameState.score = 0;
+    gameState.wrongAnswers = 0;
+    gameState.totalStars = 0;
+    if (scoreElement) {
+        scoreElement.textContent = '0';
+    }
+    if (totalStarsElement) {
+        totalStarsElement.textContent = '0';
+    }
+    // Hide end game modal
+    if (endGameModal) {
+        endGameModal.style.display = 'none';
+    }
+    // Re-enable buttons
+    optionButtons.forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('correct', 'wrong');
+    });
+    // Start new question
+    nextQuestion();
+    // Start timer
+    startTimer();
 }
 // Update stat value with animation
 function updateStatValue(element, newValue) {
@@ -376,6 +533,7 @@ function checkAnswer(selectedValue) {
         }, 2500);
     }
     else {
+        gameState.wrongAnswers++;
         showFeedback(false);
         playWrongAnswerSound();
         // Re-enable after feedback
@@ -395,6 +553,7 @@ function setLevel(levelKey) {
         return;
     gameState.currentLevel = level;
     gameState.score = 0;
+    gameState.wrongAnswers = 0;
     // Load total stars from localStorage if player exists
     if (playerData) {
         const savedData = loadPlayerData();
@@ -412,15 +571,12 @@ function setLevel(levelKey) {
     totalStarsElement.textContent = gameState.totalStars.toString();
     scoreElement.classList.remove('updated');
     totalStarsElement.classList.remove('updated');
-    // Update active level button
-    levelButtons.forEach(btn => {
-        if (btn.dataset.level === levelKey) {
-            btn.classList.add('active');
-        }
-        else {
-            btn.classList.remove('active');
-        }
-    });
+    // Note: Level buttons are removed from game container
+    // Level is set at the beginning and cannot be changed during game
+    // Reset timer if not running
+    if (!timerState.isRunning) {
+        resetTimer();
+    }
     // Generate new question with new level
     nextQuestion();
 }
@@ -439,6 +595,51 @@ function nextQuestion() {
         btn.classList.remove('correct', 'wrong');
         btn.disabled = false;
     });
+}
+// Reset player form
+function resetPlayerForm() {
+    const nameInput = document.getElementById('player-name');
+    const ageInput = document.getElementById('player-age');
+    if (nameInput) {
+        nameInput.value = '';
+    }
+    if (ageInput) {
+        ageInput.value = '';
+    }
+    // Reset level selection to default (Easy)
+    modalLevelButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const defaultLevelBtn = document.getElementById('modal-level-easy');
+    if (defaultLevelBtn) {
+        defaultLevelBtn.classList.add('active');
+    }
+    selectedLevel = 'easy';
+}
+// Back to main menu
+function backToMainMenu() {
+    // Stop timer
+    stopTimer();
+    // Reset game state
+    gameState.score = 0;
+    gameState.wrongAnswers = 0;
+    gameState.isAnswered = false;
+    // Hide end game modal
+    if (endGameModal) {
+        endGameModal.style.display = 'none';
+    }
+    // Hide game container
+    if (gameContainer) {
+        gameContainer.style.display = 'none';
+    }
+    // Reset player form
+    resetPlayerForm();
+    // Show player modal
+    if (playerModal) {
+        playerModal.style.display = 'flex';
+    }
+    // Reset game logic initialization flag
+    gameLogicInitialized = false;
 }
 // Handle player form submission
 function handlePlayerFormSubmit(event) {
@@ -468,16 +669,73 @@ function handlePlayerFormSubmit(event) {
         initGameLogic();
     }
 }
+// Flag to prevent duplicate event listeners
+let gameLogicInitialized = false;
 // Initialize game logic
 function initGameLogic() {
-    // Add event listeners to level buttons
-    levelButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const levelKey = btn.dataset.level;
-            if (levelKey) {
-                setLevel(levelKey);
+    // Only initialize once
+    if (gameLogicInitialized)
+        return;
+    gameLogicInitialized = true;
+    // Timer setting button click
+    if (timerSettingBtn) {
+        timerSettingBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (timerSettingDropdown) {
+                timerSettingDropdown.classList.toggle('show');
             }
         });
+    }
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (timerSettingBtn && timerSettingDropdown &&
+            !timerSettingBtn.contains(e.target) &&
+            !timerSettingDropdown.contains(e.target)) {
+            timerSettingDropdown.classList.remove('show');
+        }
+    });
+    // Timer option clicks
+    if (timerSettingDropdown) {
+        const timerOptions = timerSettingDropdown.querySelectorAll('.timer-option');
+        timerOptions.forEach(opt => {
+            opt.addEventListener('click', () => {
+                const minutes = parseInt(opt.getAttribute('data-minutes') || '10');
+                setTimerDuration(minutes);
+                timerSettingDropdown.classList.remove('show');
+                // Reset timer if game hasn't started, or restart if running
+                if (!timerState.isRunning) {
+                    resetTimer();
+                }
+                else {
+                    // If timer is running, restart with new duration
+                    stopTimer();
+                    setTimerDuration(minutes);
+                    startTimer();
+                }
+            });
+        });
+    }
+    // End game modal timer option buttons
+    if (endGameModal) {
+        const endGameTimerOptions = endGameModal.querySelectorAll('.timer-option-btn');
+        endGameTimerOptions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const minutes = parseInt(btn.getAttribute('data-minutes') || '10');
+                resetGameWithTimer(minutes);
+            });
+        });
+    }
+    // Back to menu button
+    if (backToMenuBtn) {
+        backToMenuBtn.addEventListener('click', () => {
+            backToMainMenu();
+        });
+    }
+    // ESC key handler for back to menu
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && endGameModal && endGameModal.style.display === 'flex') {
+            backToMainMenu();
+        }
     });
     // Add event listeners to option buttons
     optionButtons.forEach(btn => {
@@ -486,13 +744,39 @@ function initGameLogic() {
             checkAnswer(value);
         });
     });
+    // Initialize timer display
+    if (timerDisplay && timerSettingDisplay) {
+        setTimerDuration(10);
+    }
     // Set default level (Easy) and start first question
     setLevel('easy');
+    // Start timer when game starts (only if not already running)
+    if (timerDisplay && !timerState.isRunning) {
+        startTimer();
+    }
 }
 // Initialize app
 function initApp() {
+    // Initialize level selection in modal
+    modalLevelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all buttons
+            modalLevelButtons.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            btn.classList.add('active');
+            // Set selected level
+            selectedLevel = btn.dataset.level || 'easy';
+        });
+    });
+    // Set default level (Easy) as active
+    const defaultLevelBtn = document.getElementById('modal-level-easy');
+    if (defaultLevelBtn) {
+        defaultLevelBtn.classList.add('active');
+    }
     // Check if player data exists
     const savedData = loadPlayerData();
+    // Always reset form when showing modal
+    resetPlayerForm();
     if (savedData) {
         // Load existing player data
         playerData = savedData;
@@ -501,19 +785,9 @@ function initApp() {
         if (playerNameDisplay && gameContainer.style.display !== 'none') {
             playerNameDisplay.textContent = savedData.name;
         }
-        // Show modal to confirm or update
-        playerModal.style.display = 'flex';
-        const nameInput = document.getElementById('player-name');
-        const ageInput = document.getElementById('player-age');
-        if (nameInput && ageInput) {
-            nameInput.value = savedData.name;
-            ageInput.value = savedData.age.toString();
-        }
     }
-    else {
-        // Show modal for new player
-        playerModal.style.display = 'flex';
-    }
+    // Show modal
+    playerModal.style.display = 'flex';
     // Add form submit handler
     playerForm.addEventListener('submit', handlePlayerFormSubmit);
 }

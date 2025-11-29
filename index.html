@@ -25,6 +25,19 @@
                     <label for="player-age">Usia:</label>
                     <input type="number" id="player-age" name="age" placeholder="Usia" required min="1" max="10">
                 </div>
+                <div class="form-group">
+                    <label>Pilih Level:</label>
+                    <div class="level-buttons-modal">
+                        <button type="button" class="level-btn-modal" data-level="easy"
+                            id="modal-level-easy">Easy<br><span class="level-range">1-10</span></button>
+                        <button type="button" class="level-btn-modal" data-level="medium"
+                            id="modal-level-medium">Medium<br><span class="level-range">11-20</span></button>
+                        <button type="button" class="level-btn-modal" data-level="hard"
+                            id="modal-level-hard">Hard<br><span class="level-range">20-30</span></button>
+                        <button type="button" class="level-btn-modal" data-level="extreme"
+                            id="modal-level-extreme">Extreme<br><span class="level-range">31-50</span></button>
+                    </div>
+                </div>
                 <button type="submit" class="submit-btn">Mulai Bermain 🎮</button>
             </form>
         </div>
@@ -32,10 +45,29 @@
 
     <div class="container" id="game-container" style="display: none;">
         <header>
-            <h1>🎮 Tebak Angka</h1>
+            <div class="header-top">
+                <h1>🎮 Tebak Angka</h1>
+                <button class="timer-setting-btn" id="timer-setting-btn" title="Pengaturan Waktu">
+                    ⏱️ <span id="timer-setting-display">10 menit</span>
+                </button>
+            </div>
             <p class="subtitle">Pilih angka yang sesuai dengan gambar!</p>
 
+            <!-- Timer Setting Dropdown -->
+            <div class="timer-setting-dropdown" id="timer-setting-dropdown">
+                <button class="timer-option" data-minutes="5">5 Menit</button>
+                <button class="timer-option" data-minutes="10">10 Menit</button>
+                <button class="timer-option" data-minutes="15">15 Menit</button>
+            </div>
+
             <div class="stats-container">
+                <div class="stat-card timer-card" id="timer-card">
+                    <div class="stat-icon">⏱️</div>
+                    <div class="stat-content">
+                        <div class="stat-label">Waktu</div>
+                        <div class="stat-value timer-value" id="timer-display">10:00</div>
+                    </div>
+                </div>
                 <div class="stat-card player-card">
                     <div class="stat-icon">👶</div>
                     <div class="stat-content">
@@ -61,20 +93,6 @@
                 </div>
             </div>
         </header>
-
-        <div class="level-selection">
-            <p class="level-label">Pilih Level:</p>
-            <div class="level-buttons">
-                <button class="level-btn" data-level="easy" id="level-easy">Easy<br><span
-                        class="level-range">1-10</span></button>
-                <button class="level-btn" data-level="medium" id="level-medium">Medium<br><span
-                        class="level-range">11-20</span></button>
-                <button class="level-btn" data-level="hard" id="level-hard">Hard<br><span
-                        class="level-range">20-30</span></button>
-                <button class="level-btn" data-level="extreme" id="level-extreme">Extreme<br><span
-                        class="level-range">31-50</span></button>
-            </div>
-        </div>
 
         <main>
             <div class="visual-container">
@@ -105,6 +123,42 @@
             </div>
 
         </main>
+    </div>
+
+    <!-- End Game Modal -->
+    <div id="end-game-modal" class="modal" style="display: none;">
+        <div class="modal-content end-game-content">
+            <h2>⏰ Waktu Habis!</h2>
+            <div class="game-stats">
+                <div class="stat-item">
+                    <span class="stat-label">Jumlah Percobaan:</span>
+                    <span class="stat-number" id="end-attempts">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Jumlah Benar:</span>
+                    <span class="stat-number correct" id="end-correct">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Jumlah Salah:</span>
+                    <span class="stat-number wrong" id="end-wrong">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Jumlah Bintang:</span>
+                    <span class="stat-number stars" id="end-stars">0</span>
+                </div>
+            </div>
+            <div class="timer-options-section">
+                <p class="options-label">Pilih waktu bermain lagi:</p>
+                <div class="timer-options-buttons">
+                    <button class="timer-option-btn" data-minutes="5">5 Menit</button>
+                    <button class="timer-option-btn" data-minutes="10">10 Menit</button>
+                    <button class="timer-option-btn" data-minutes="15">15 Menit</button>
+                </div>
+            </div>
+            <div class="back-to-menu-section">
+                <button class="back-to-menu-btn" id="back-to-menu-btn">Kembali ke Menu Utama</button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>

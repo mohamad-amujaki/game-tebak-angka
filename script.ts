@@ -20,6 +20,23 @@ const levels: Record<string, Level> = {
     extreme: { name: 'Extreme', min: 31, max: 50 }
 };
 
+// Timer state
+interface TimerState {
+    duration: number; // in minutes
+    timeLeft: number; // in seconds
+    isRunning: boolean;
+    startTime: number;
+    intervalId: number | null;
+}
+
+// Game statistics
+interface GameStats {
+    attempts: number;
+    correct: number;
+    wrong: number;
+    stars: number;
+}
+
 // Game state
 interface GameState {
     currentCount: number;
@@ -30,6 +47,7 @@ interface GameState {
     currentLevel: Level;
     totalStars: number;
     questionStartTime: number;
+    wrongAnswers: number;
 }
 
 let gameState: GameState = {
@@ -40,7 +58,19 @@ let gameState: GameState = {
     isAnswered: false,
     currentLevel: levels.easy, // Default to Easy
     totalStars: 0,
-    questionStartTime: 0
+    questionStartTime: 0,
+    wrongAnswers: 0
+};
+
+// Selected level from modal (will be set before game starts)
+let selectedLevel: string = 'easy';
+
+let timerState: TimerState = {
+    duration: 10, // Default 10 minutes
+    timeLeft: 600, // 10 minutes in seconds
+    isRunning: false,
+    startTime: 0,
+    intervalId: null
 };
 
 // Emoji library
@@ -66,13 +96,26 @@ const visualDisplay = document.getElementById('visual-display') as HTMLElement;
 const optionButtons = document.querySelectorAll('.option-btn') as NodeListOf<HTMLButtonElement>;
 const feedbackElement = document.getElementById('feedback') as HTMLElement;
 const scoreElement = document.getElementById('score') as HTMLElement;
-const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
+// Level buttons removed - level is selected at the beginning
+// const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
 const starRatingElement = document.getElementById('star-rating') as HTMLElement;
 const totalStarsElement = document.getElementById('total-stars') as HTMLElement;
 const playerModal = document.getElementById('player-modal') as HTMLElement;
 const gameContainer = document.getElementById('game-container') as HTMLElement;
 const playerForm = document.getElementById('player-form') as HTMLFormElement;
 const playerNameDisplay = document.getElementById('player-name-display') as HTMLElement;
+const timerSettingBtn = document.getElementById('timer-setting-btn') as HTMLElement;
+const timerSettingDropdown = document.getElementById('timer-setting-dropdown') as HTMLElement;
+const timerSettingDisplay = document.getElementById('timer-setting-display') as HTMLElement;
+const timerDisplay = document.getElementById('timer-display') as HTMLElement;
+const timerCard = document.getElementById('timer-card') as HTMLElement;
+const endGameModal = document.getElementById('end-game-modal') as HTMLElement;
+const endAttempts = document.getElementById('end-attempts') as HTMLElement;
+const endCorrect = document.getElementById('end-correct') as HTMLElement;
+const endWrong = document.getElementById('end-wrong') as HTMLElement;
+const endStars = document.getElementById('end-stars') as HTMLElement;
+const backToMenuBtn = document.getElementById('back-to-menu-btn') as HTMLElement;
+const modalLevelButtons = document.querySelectorAll('.level-btn-modal') as NodeListOf<HTMLButtonElement>;
 
 // Player data
 let playerData: PlayerData | null = null;
@@ -209,6 +252,168 @@ function createPlayerData(name: string, age: number): PlayerData {
         totalStars: 0,
         lastPlayed: new Date().toISOString()
     };
+}
+
+// Timer functions
+function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function setTimerDuration(minutes: number): void {
+    timerState.duration = minutes;
+    timerState.timeLeft = minutes * 60;
+
+    if (timerSettingDisplay) {
+        timerSettingDisplay.textContent = `${minutes} menit`;
+    }
+
+    if (timerDisplay) {
+        timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+
+    // Update active option
+    if (timerSettingDropdown) {
+        const options = timerSettingDropdown.querySelectorAll('.timer-option');
+        options.forEach(opt => {
+            const optMinutes = parseInt(opt.getAttribute('data-minutes') || '0');
+            if (optMinutes === minutes) {
+                opt.classList.add('active');
+            } else {
+                opt.classList.remove('active');
+            }
+        });
+    }
+}
+
+function startTimer(): void {
+    if (timerState.isRunning) return;
+
+    timerState.isRunning = true;
+    timerState.startTime = Date.now();
+
+    timerState.intervalId = window.setInterval(() => {
+        timerState.timeLeft--;
+
+        if (timerDisplay) {
+            timerDisplay.textContent = formatTime(timerState.timeLeft);
+        }
+
+        // Visual warning when time < 1 minute
+        if (timerCard && timerState.timeLeft <= 60) {
+            timerCard.classList.add('warning');
+        }
+
+        // Stop timer when time runs out
+        if (timerState.timeLeft <= 0) {
+            stopTimer();
+            endGame();
+        }
+    }, 1000);
+}
+
+function stopTimer(): void {
+    if (timerState.intervalId !== null) {
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+    }
+    timerState.isRunning = false;
+
+    if (timerCard) {
+        timerCard.classList.remove('warning');
+    }
+}
+
+function resetTimer(): void {
+    stopTimer();
+    timerState.timeLeft = timerState.duration * 60;
+
+    if (timerDisplay) {
+        timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+
+    if (timerCard) {
+        timerCard.classList.remove('warning');
+    }
+}
+
+function getGameStats(): GameStats {
+    return {
+        attempts: gameState.score + gameState.wrongAnswers,
+        correct: gameState.score,
+        wrong: gameState.wrongAnswers,
+        stars: gameState.totalStars
+    };
+}
+
+function showEndGameModal(): void {
+    const stats = getGameStats();
+
+    if (endAttempts) {
+        endAttempts.textContent = stats.attempts.toString();
+    }
+    if (endCorrect) {
+        endCorrect.textContent = stats.correct.toString();
+    }
+    if (endWrong) {
+        endWrong.textContent = stats.wrong.toString();
+    }
+    if (endStars) {
+        endStars.textContent = stats.stars.toString();
+    }
+
+    if (endGameModal) {
+        endGameModal.style.display = 'flex';
+    }
+}
+
+function endGame(): void {
+    stopTimer();
+    showEndGameModal();
+
+    // Disable all buttons
+    optionButtons.forEach(btn => {
+        btn.disabled = true;
+    });
+}
+
+function resetGameWithTimer(minutes: number): void {
+    // Stop current timer if running
+    stopTimer();
+
+    // Reset timer
+    setTimerDuration(minutes);
+    resetTimer();
+
+    // Reset game state
+    gameState.score = 0;
+    gameState.wrongAnswers = 0;
+    gameState.totalStars = 0;
+
+    if (scoreElement) {
+        scoreElement.textContent = '0';
+    }
+    if (totalStarsElement) {
+        totalStarsElement.textContent = '0';
+    }
+
+    // Hide end game modal
+    if (endGameModal) {
+        endGameModal.style.display = 'none';
+    }
+
+    // Re-enable buttons
+    optionButtons.forEach(btn => {
+        btn.disabled = false;
+        btn.classList.remove('correct', 'wrong');
+    });
+
+    // Start new question
+    nextQuestion();
+
+    // Start timer
+    startTimer();
 }
 
 // Update stat value with animation
@@ -458,6 +663,7 @@ function checkAnswer(selectedValue: number): void {
             nextQuestion();
         }, 2500);
     } else {
+        gameState.wrongAnswers++;
         showFeedback(false);
         playWrongAnswerSound();
 
@@ -479,6 +685,7 @@ function setLevel(levelKey: string): void {
 
     gameState.currentLevel = level;
     gameState.score = 0;
+    gameState.wrongAnswers = 0;
 
     // Load total stars from localStorage if player exists
     if (playerData) {
@@ -497,14 +704,13 @@ function setLevel(levelKey: string): void {
     scoreElement.classList.remove('updated');
     totalStarsElement.classList.remove('updated');
 
-    // Update active level button
-    levelButtons.forEach(btn => {
-        if (btn.dataset.level === levelKey) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
+    // Note: Level buttons are removed from game container
+    // Level is set at the beginning and cannot be changed during game
+
+    // Reset timer if not running
+    if (!timerState.isRunning) {
+        resetTimer();
+    }
 
     // Generate new question with new level
     nextQuestion();
@@ -527,6 +733,64 @@ function nextQuestion(): void {
         btn.classList.remove('correct', 'wrong');
         btn.disabled = false;
     });
+}
+
+// Reset player form
+function resetPlayerForm(): void {
+    const nameInput = document.getElementById('player-name') as HTMLInputElement;
+    const ageInput = document.getElementById('player-age') as HTMLInputElement;
+
+    if (nameInput) {
+        nameInput.value = '';
+    }
+
+    if (ageInput) {
+        ageInput.value = '';
+    }
+
+    // Reset level selection to default (Easy)
+    modalLevelButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    const defaultLevelBtn = document.getElementById('modal-level-easy');
+    if (defaultLevelBtn) {
+        defaultLevelBtn.classList.add('active');
+    }
+
+    selectedLevel = 'easy';
+}
+
+// Back to main menu
+function backToMainMenu(): void {
+    // Stop timer
+    stopTimer();
+
+    // Reset game state
+    gameState.score = 0;
+    gameState.wrongAnswers = 0;
+    gameState.isAnswered = false;
+
+    // Hide end game modal
+    if (endGameModal) {
+        endGameModal.style.display = 'none';
+    }
+
+    // Hide game container
+    if (gameContainer) {
+        gameContainer.style.display = 'none';
+    }
+
+    // Reset player form
+    resetPlayerForm();
+
+    // Show player modal
+    if (playerModal) {
+        playerModal.style.display = 'flex';
+    }
+
+    // Reset game logic initialization flag
+    gameLogicInitialized = false;
 }
 
 // Handle player form submission
@@ -565,16 +829,79 @@ function handlePlayerFormSubmit(event: Event): void {
     }
 }
 
+// Flag to prevent duplicate event listeners
+let gameLogicInitialized = false;
+
 // Initialize game logic
 function initGameLogic(): void {
-    // Add event listeners to level buttons
-    levelButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const levelKey = btn.dataset.level;
-            if (levelKey) {
-                setLevel(levelKey);
+    // Only initialize once
+    if (gameLogicInitialized) return;
+    gameLogicInitialized = true;
+
+    // Timer setting button click
+    if (timerSettingBtn) {
+        timerSettingBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (timerSettingDropdown) {
+                timerSettingDropdown.classList.toggle('show');
             }
         });
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (timerSettingBtn && timerSettingDropdown &&
+            !timerSettingBtn.contains(e.target as Node) &&
+            !timerSettingDropdown.contains(e.target as Node)) {
+            timerSettingDropdown.classList.remove('show');
+        }
+    });
+
+    // Timer option clicks
+    if (timerSettingDropdown) {
+        const timerOptions = timerSettingDropdown.querySelectorAll('.timer-option');
+        timerOptions.forEach(opt => {
+            opt.addEventListener('click', () => {
+                const minutes = parseInt(opt.getAttribute('data-minutes') || '10');
+                setTimerDuration(minutes);
+                timerSettingDropdown.classList.remove('show');
+
+                // Reset timer if game hasn't started, or restart if running
+                if (!timerState.isRunning) {
+                    resetTimer();
+                } else {
+                    // If timer is running, restart with new duration
+                    stopTimer();
+                    setTimerDuration(minutes);
+                    startTimer();
+                }
+            });
+        });
+    }
+
+    // End game modal timer option buttons
+    if (endGameModal) {
+        const endGameTimerOptions = endGameModal.querySelectorAll('.timer-option-btn');
+        endGameTimerOptions.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const minutes = parseInt(btn.getAttribute('data-minutes') || '10');
+                resetGameWithTimer(minutes);
+            });
+        });
+    }
+
+    // Back to menu button
+    if (backToMenuBtn) {
+        backToMenuBtn.addEventListener('click', () => {
+            backToMainMenu();
+        });
+    }
+
+    // ESC key handler for back to menu
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && endGameModal && endGameModal.style.display === 'flex') {
+            backToMainMenu();
+        }
     });
 
     // Add event listeners to option buttons
@@ -585,14 +912,45 @@ function initGameLogic(): void {
         });
     });
 
+    // Initialize timer display
+    if (timerDisplay && timerSettingDisplay) {
+        setTimerDuration(10);
+    }
+
     // Set default level (Easy) and start first question
     setLevel('easy');
+
+    // Start timer when game starts (only if not already running)
+    if (timerDisplay && !timerState.isRunning) {
+        startTimer();
+    }
 }
 
 // Initialize app
 function initApp(): void {
+    // Initialize level selection in modal
+    modalLevelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all buttons
+            modalLevelButtons.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            btn.classList.add('active');
+            // Set selected level
+            selectedLevel = btn.dataset.level || 'easy';
+        });
+    });
+
+    // Set default level (Easy) as active
+    const defaultLevelBtn = document.getElementById('modal-level-easy');
+    if (defaultLevelBtn) {
+        defaultLevelBtn.classList.add('active');
+    }
+
     // Check if player data exists
     const savedData = loadPlayerData();
+
+    // Always reset form when showing modal
+    resetPlayerForm();
 
     if (savedData) {
         // Load existing player data
@@ -603,19 +961,10 @@ function initApp(): void {
         if (playerNameDisplay && gameContainer.style.display !== 'none') {
             playerNameDisplay.textContent = savedData.name;
         }
-
-        // Show modal to confirm or update
-        playerModal.style.display = 'flex';
-        const nameInput = document.getElementById('player-name') as HTMLInputElement;
-        const ageInput = document.getElementById('player-age') as HTMLInputElement;
-        if (nameInput && ageInput) {
-            nameInput.value = savedData.name;
-            ageInput.value = savedData.age.toString();
-        }
-    } else {
-        // Show modal for new player
-        playerModal.style.display = 'flex';
     }
+
+    // Show modal
+    playerModal.style.display = 'flex';
 
     // Add form submit handler
     playerForm.addEventListener('submit', handlePlayerFormSubmit);

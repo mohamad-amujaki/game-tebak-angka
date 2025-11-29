@@ -687,20 +687,11 @@ function setLevel(levelKey: string): void {
     gameState.score = 0;
     gameState.wrongAnswers = 0;
 
-    // Load total stars from localStorage if player exists
-    if (playerData) {
-        const savedData = loadPlayerData();
-        if (savedData && savedData.name.toLowerCase() === playerData.name.toLowerCase()) {
-            gameState.totalStars = savedData.totalStars;
-        } else {
-            gameState.totalStars = 0;
-        }
-    } else {
-        gameState.totalStars = 0;
-    }
+    // Reset stars when starting new game (don't load from localStorage)
+    gameState.totalStars = 0;
 
     scoreElement.textContent = '0';
-    totalStarsElement.textContent = gameState.totalStars.toString();
+    totalStarsElement.textContent = '0';
     scoreElement.classList.remove('updated');
     totalStarsElement.classList.remove('updated');
 
@@ -810,14 +801,13 @@ function handlePlayerFormSubmit(event: Event): void {
             playerNameDisplay.textContent = name;
         }
 
-        // Load existing stars if player exists
-        const existingData = loadPlayerData();
-        if (existingData && existingData.name.toLowerCase() === name.toLowerCase()) {
-            gameState.totalStars = existingData.totalStars;
-            totalStarsElement.textContent = existingData.totalStars.toString();
+        // Reset stars when starting new game session
+        gameState.totalStars = 0;
+        if (totalStarsElement) {
+            totalStarsElement.textContent = '0';
         }
 
-        // Save to localStorage
+        // Save to localStorage (with reset stars)
         savePlayerData();
 
         // Hide modal and show game

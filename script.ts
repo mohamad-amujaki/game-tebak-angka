@@ -1,25 +1,97 @@
-// Level configuration
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+const GAME_CONFIG = {
+    DEFAULT_LEVEL: 'easy',
+    DEFAULT_TIMER_MINUTES: 5,
+    SECONDS_PER_MINUTE: 60,
+    TIMER_WARNING_THRESHOLD: 60, // seconds
+    TIMER_UPDATE_INTERVAL: 1000, // milliseconds
+    FEEDBACK_DISPLAY_DURATION: 2000, // milliseconds
+    NEXT_QUESTION_DELAY: 2500, // milliseconds
+    STAR_ANIMATION_DELAY: 200, // milliseconds
+    STAR_DISPLAY_DURATION: 2500, // milliseconds
+    STAT_ANIMATION_DURATION: 500, // milliseconds
+    MIN_NAME_LENGTH: 2,
+    MAX_NAME_LENGTH: 20,
+    OPTIONS_COUNT: 4,
+    MAX_GRID_COLS_SMALL: 10,
+    MAX_GRID_COLS_MEDIUM: 25,
+    GRID_COLS_SMALL: 5,
+    GRID_COLS_LARGE: 10,
+    VISUAL_TYPES: {
+        EMOJI: 0,
+        SVG: 1,
+        MIX: 2
+    },
+    STORAGE_KEY: 'playerData'
+} as const;
+
+const TIMER_DURATIONS = {
+    MIN_5: 5,
+    MIN_10: 10,
+    MIN_15: 15
+} as const;
+
+const FEEDBACK_MESSAGES = {
+    CORRECT: '🎉 Benar! Bagus sekali!',
+    WRONG: '😔 Belum tepat, coba lagi!'
+} as const;
+
+const END_GAME_TITLES = {
+    TIME_UP: '⏰ Waktu Habis!',
+    STOPPED: '⏹️ Permainan Dihentikan'
+} as const;
+
+const SPEECH_MESSAGES = [
+    'Oops, coba lagi!',
+    'Hampir benar, coba sekali lagi'
+] as const;
+
+const AUDIO_CONFIG = {
+    APPLAUSE_DURATION: 1.5, // seconds
+    NUM_CLAPS: 8,
+    CLAP_DURATION: 0.05, // seconds
+    GAIN_VALUE: 0.5,
+    SPEECH_VOLUME: 0.8,
+    SPEECH_RATE: 1.0,
+    SPEECH_PITCH: 1.0
+} as const;
+
+const STAR_RATING_THRESHOLDS = {
+    easy: { three: 5000, two: 10000 },
+    medium: { three: 7000, two: 15000 },
+    hard: { three: 10000, two: 20000 },
+    extreme: { three: 12000, two: 25000 }
+} as const;
+
+const CONFETTI_CONFIG = {
+    DURATION: 3000,
+    START_VELOCITY: 30,
+    SPREAD: 360,
+    TICKS: 60,
+    Z_INDEX: 0,
+    INTERVAL: 250,
+    PARTICLE_MULTIPLIER: 50
+} as const;
+
+// ============================================================================
+// INTERFACES & TYPES
+// ============================================================================
+
 interface Level {
     name: string;
     min: number;
     max: number;
 }
 
-// Player data interface
 interface PlayerData {
     name: string;
     totalStars: number;
     lastPlayed: string;
 }
 
-const levels: Record<string, Level> = {
-    easy: { name: 'Easy', min: 1, max: 10 },
-    medium: { name: 'Medium', min: 11, max: 20 },
-    hard: { name: 'Hard', min: 20, max: 30 },
-    extreme: { name: 'Extreme', min: 31, max: 50 }
-};
-
-// Timer state
 interface TimerState {
     duration: number; // in minutes
     timeLeft: number; // in seconds
@@ -28,7 +100,6 @@ interface TimerState {
     intervalId: number | null;
 }
 
-// Game statistics
 interface GameStats {
     attempts: number;
     correct: number;
@@ -36,7 +107,6 @@ interface GameStats {
     stars: number;
 }
 
-// Game state
 interface GameState {
     currentCount: number;
     correctAnswer: number;
@@ -49,34 +119,18 @@ interface GameState {
     wrongAnswers: number;
 }
 
-let gameState: GameState = {
-    currentCount: 0,
-    correctAnswer: 0,
-    options: [],
-    score: 0,
-    isAnswered: false,
-    currentLevel: levels.easy, // Default to Easy
-    totalStars: 0,
-    questionStartTime: 0,
-    wrongAnswers: 0
+// ============================================================================
+// DATA CONFIGURATION
+// ============================================================================
+
+const LEVELS: Record<string, Level> = {
+    easy: { name: 'Easy', min: 1, max: 10 },
+    medium: { name: 'Medium', min: 11, max: 20 },
+    hard: { name: 'Hard', min: 20, max: 30 },
+    extreme: { name: 'Extreme', min: 31, max: 50 }
 };
 
-// Selected level from modal (will be set before game starts)
-let selectedLevel: string = 'easy';
-
-let timerState: TimerState = {
-    duration: 5, // Default 5 minutes
-    timeLeft: 300, // 5 minutes in seconds
-    isRunning: false,
-    startTime: 0,
-    intervalId: null
-};
-
-// Selected timer duration from modal (will be set before game starts)
-let selectedTimerDuration: number = 5;
-
-// Emoji library
-const emojis: string[] = [
+const EMOJIS: readonly string[] = [
     '🍎', '⭐', '⚽', '🎈', '🎨', '🐶', '🐱', '🐻', '🐰', '🦁',
     '🐸', '🐷', '🐼', '🐨', '🦄', '🌺', '🌸', '🌻', '🌷', '🌹',
     '🍓', '🍌', '🍇', '🍊', '🍉', '🍑', '🥝', '🍒', '🥕', '🌽',
@@ -84,51 +138,86 @@ const emojis: string[] = [
     '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐'
 ];
 
-// SVG icons (simple shapes)
-const svgIcons = {
+const SVG_ICONS = {
     circle: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>',
     star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
     square: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="2"/></svg>',
     triangle: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2z"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'
+} as const;
+
+const SVG_COLORS: readonly string[] = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+    '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C'
+];
+
+// ============================================================================
+// STATE MANAGEMENT
+// ============================================================================
+
+let gameState: GameState = {
+    currentCount: 0,
+    correctAnswer: 0,
+    options: [],
+    score: 0,
+    isAnswered: false,
+    currentLevel: LEVELS[GAME_CONFIG.DEFAULT_LEVEL],
+    totalStars: 0,
+    questionStartTime: 0,
+    wrongAnswers: 0
 };
 
-// DOM elements
-const visualDisplay = document.getElementById('visual-display') as HTMLElement;
-const optionButtons = document.querySelectorAll('.option-btn') as NodeListOf<HTMLButtonElement>;
-const feedbackElement = document.getElementById('feedback') as HTMLElement;
-const scoreElement = document.getElementById('score') as HTMLElement;
-// Level buttons removed - level is selected at the beginning
-// const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
-const starRatingElement = document.getElementById('star-rating') as HTMLElement;
-const totalStarsElement = document.getElementById('total-stars') as HTMLElement;
-const playerModal = document.getElementById('player-modal') as HTMLElement;
-const gameContainer = document.getElementById('game-container') as HTMLElement;
-const playerForm = document.getElementById('player-form') as HTMLFormElement;
-const playerNameDisplay = document.getElementById('player-name-display') as HTMLElement;
-const timerDisplay = document.getElementById('timer-display') as HTMLElement;
-const timerCard = document.getElementById('timer-card') as HTMLElement;
-const endGameModal = document.getElementById('end-game-modal') as HTMLElement;
-const endGameTitle = document.getElementById('end-game-title') as HTMLElement;
-const endTime = document.getElementById('end-time') as HTMLElement;
-const endAttempts = document.getElementById('end-attempts') as HTMLElement;
-const endCorrect = document.getElementById('end-correct') as HTMLElement;
-const endWrong = document.getElementById('end-wrong') as HTMLElement;
-const endStars = document.getElementById('end-stars') as HTMLElement;
-const backToMenuBtn = document.getElementById('back-to-menu-btn') as HTMLElement;
-const stopGameBtn = document.getElementById('stop-game-btn') as HTMLElement;
-const modalLevelButtons = document.querySelectorAll('.level-btn-modal') as NodeListOf<HTMLButtonElement>;
-const modalTimerButtons = document.querySelectorAll('.timer-btn-modal') as NodeListOf<HTMLButtonElement>;
+let timerState: TimerState = {
+    duration: GAME_CONFIG.DEFAULT_TIMER_MINUTES,
+    timeLeft: GAME_CONFIG.DEFAULT_TIMER_MINUTES * GAME_CONFIG.SECONDS_PER_MINUTE,
+    isRunning: false,
+    startTime: 0,
+    intervalId: null
+};
 
-// Player data
+let selectedLevel: string = GAME_CONFIG.DEFAULT_LEVEL;
+let selectedTimerDuration: number = GAME_CONFIG.DEFAULT_TIMER_MINUTES;
 let playerData: PlayerData | null = null;
+let gameLogicInitialized = false;
 
-// Generate random number between min and max (inclusive)
+// ============================================================================
+// DOM ELEMENTS
+// ============================================================================
+
+const DOM = {
+    visualDisplay: document.getElementById('visual-display') as HTMLElement,
+    optionButtons: document.querySelectorAll('.option-btn') as NodeListOf<HTMLButtonElement>,
+    feedbackElement: document.getElementById('feedback') as HTMLElement,
+    scoreElement: document.getElementById('score') as HTMLElement,
+    starRatingElement: document.getElementById('star-rating') as HTMLElement,
+    totalStarsElement: document.getElementById('total-stars') as HTMLElement,
+    playerModal: document.getElementById('player-modal') as HTMLElement,
+    gameContainer: document.getElementById('game-container') as HTMLElement,
+    playerForm: document.getElementById('player-form') as HTMLFormElement,
+    playerNameDisplay: document.getElementById('player-name-display') as HTMLElement,
+    timerDisplay: document.getElementById('timer-display') as HTMLElement,
+    timerCard: document.getElementById('timer-card') as HTMLElement,
+    endGameModal: document.getElementById('end-game-modal') as HTMLElement,
+    endGameTitle: document.getElementById('end-game-title') as HTMLElement,
+    endTime: document.getElementById('end-time') as HTMLElement,
+    endAttempts: document.getElementById('end-attempts') as HTMLElement,
+    endCorrect: document.getElementById('end-correct') as HTMLElement,
+    endWrong: document.getElementById('end-wrong') as HTMLElement,
+    endStars: document.getElementById('end-stars') as HTMLElement,
+    backToMenuBtn: document.getElementById('back-to-menu-btn') as HTMLElement,
+    stopGameBtn: document.getElementById('stop-game-btn') as HTMLElement,
+    modalLevelButtons: document.querySelectorAll('.level-btn-modal') as NodeListOf<HTMLButtonElement>,
+    modalTimerButtons: document.querySelectorAll('.timer-btn-modal') as NodeListOf<HTMLButtonElement>
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
 function randomInt(min: number, max: number): number {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Shuffle array
 function shuffleArray<T>(array: T[]): T[] {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -138,73 +227,91 @@ function shuffleArray<T>(array: T[]): T[] {
     return shuffled;
 }
 
-// Generate visual (emoji or SVG)
-function generateVisual(count: number): void {
-    visualDisplay.innerHTML = '';
-
-    // Determine grid columns based on count
-    const cols = count <= 10 ? count : count <= 25 ? 5 : 10;
-    visualDisplay.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-
-    // Randomly choose between emoji, SVG, or mix
-    const visualType = randomInt(0, 2); // 0: emoji, 1: SVG, 2: mix
-
-    for (let i = 0; i < count; i++) {
-        const item = document.createElement('div');
-        item.className = 'visual-item';
-
-        if (visualType === 0) {
-            // Use emoji
-            const emoji = emojis[randomInt(0, emojis.length - 1)];
-            item.textContent = emoji;
-        } else if (visualType === 1) {
-            // Use SVG
-            const svgKeys = Object.keys(svgIcons);
-            const randomSvg = svgKeys[randomInt(0, svgKeys.length - 1)];
-            item.innerHTML = svgIcons[randomSvg as keyof typeof svgIcons];
-            item.style.color = getRandomColor();
-        } else {
-            // Mix: alternate or random
-            if (i % 2 === 0) {
-                const emoji = emojis[randomInt(0, emojis.length - 1)];
-                item.textContent = emoji;
-            } else {
-                const svgKeys = Object.keys(svgIcons);
-                const randomSvg = svgKeys[randomInt(0, svgKeys.length - 1)];
-                item.innerHTML = svgIcons[randomSvg as keyof typeof svgIcons];
-                item.style.color = getRandomColor();
-            }
-        }
-
-        visualDisplay.appendChild(item);
-    }
-}
-
-// Get random color for SVG
 function getRandomColor(): string {
-    const colors = [
-        '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-        '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C'
-    ];
-    return colors[randomInt(0, colors.length - 1)];
+    return SVG_COLORS[randomInt(0, SVG_COLORS.length - 1)];
 }
 
-// Generate answer options (1 correct + 3 distractors)
+function formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / GAME_CONFIG.SECONDS_PER_MINUTE);
+    const secs = seconds % GAME_CONFIG.SECONDS_PER_MINUTE;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+function safeGetElementById<T extends HTMLElement>(id: string): T | null {
+    return document.getElementById(id) as T | null;
+}
+
+function safeQuerySelector<T extends HTMLElement>(selector: string): T | null {
+    return document.querySelector(selector) as T | null;
+}
+
+// ============================================================================
+// VISUAL GENERATION
+// ============================================================================
+
+function calculateGridColumns(count: number): number {
+    if (count <= GAME_CONFIG.MAX_GRID_COLS_SMALL) {
+        return count;
+    }
+    if (count <= GAME_CONFIG.MAX_GRID_COLS_MEDIUM) {
+        return GAME_CONFIG.GRID_COLS_SMALL;
+    }
+    return GAME_CONFIG.GRID_COLS_LARGE;
+}
+
+function createEmojiItem(): string {
+    const emoji = EMOJIS[randomInt(0, EMOJIS.length - 1)];
+    return `<div class="visual-item">${emoji}</div>`;
+}
+
+function createSvgItem(): string {
+    const svgKeys = Object.keys(SVG_ICONS);
+    const randomSvg = svgKeys[randomInt(0, svgKeys.length - 1)];
+    const color = getRandomColor();
+    return `<div class="visual-item" style="color: ${color}">${SVG_ICONS[randomSvg as keyof typeof SVG_ICONS]}</div>`;
+}
+
+function generateVisual(count: number): void {
+    if (!DOM.visualDisplay) return;
+
+    DOM.visualDisplay.innerHTML = '';
+    const cols = calculateGridColumns(count);
+    DOM.visualDisplay.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+    const visualType = randomInt(
+        GAME_CONFIG.VISUAL_TYPES.EMOJI,
+        GAME_CONFIG.VISUAL_TYPES.MIX
+    );
+
+    const items: string[] = [];
+    for (let i = 0; i < count; i++) {
+        if (visualType === GAME_CONFIG.VISUAL_TYPES.EMOJI) {
+            items.push(createEmojiItem());
+        } else if (visualType === GAME_CONFIG.VISUAL_TYPES.SVG) {
+            items.push(createSvgItem());
+        } else {
+            items.push(i % 2 === 0 ? createEmojiItem() : createSvgItem());
+        }
+    }
+
+    DOM.visualDisplay.innerHTML = items.join('');
+}
+
+// ============================================================================
+// GAME LOGIC
+// ============================================================================
+
 function generateOptions(correctAnswer: number): number[] {
     const options: number[] = [correctAnswer];
     const usedNumbers = new Set([correctAnswer]);
     const level = gameState.currentLevel;
 
-    // Generate 3 distractors
-    while (options.length < 4) {
+    const range = Math.max(3, Math.floor((level.max - level.min) * 0.2));
+    const min = Math.max(level.min, correctAnswer - range);
+    const max = Math.min(level.max, correctAnswer + range);
+
+    while (options.length < GAME_CONFIG.OPTIONS_COUNT) {
         let distractor: number;
-
-        // Make distractors more challenging but not too far off
-        // Use level range to constrain distractors
-        const range = Math.max(3, Math.floor((level.max - level.min) * 0.2));
-        const min = Math.max(level.min, correctAnswer - range);
-        const max = Math.min(level.max, correctAnswer + range);
-
         do {
             distractor = randomInt(min, max);
         } while (usedNumbers.has(distractor));
@@ -216,9 +323,8 @@ function generateOptions(correctAnswer: number): number[] {
     return shuffleArray(options);
 }
 
-// Update option buttons
 function updateOptions(options: number[]): void {
-    optionButtons.forEach((btn, index) => {
+    DOM.optionButtons.forEach((btn, index) => {
         btn.textContent = options[index].toString();
         btn.dataset.value = options[index].toString();
         btn.classList.remove('correct', 'wrong');
@@ -226,392 +332,248 @@ function updateOptions(options: number[]): void {
     });
 }
 
-// LocalStorage functions
-function savePlayerData(): void {
-    if (playerData) {
-        playerData.totalStars = gameState.totalStars;
-        playerData.lastPlayed = new Date().toISOString();
-        localStorage.setItem('playerData', JSON.stringify(playerData));
-    }
+function resetOptionButtons(): void {
+    DOM.optionButtons.forEach(btn => {
+        btn.classList.remove('correct', 'wrong');
+        btn.disabled = false;
+    });
 }
 
-function loadPlayerData(): PlayerData | null {
-    const saved = localStorage.getItem('playerData');
-    if (saved) {
-        try {
-            return JSON.parse(saved) as PlayerData;
-        } catch (e) {
-            console.error('Error loading player data:', e);
-            return null;
-        }
-    }
-    return null;
-}
-
-function createPlayerData(name: string): PlayerData {
-    return {
-        name: name,
-        totalStars: 0,
-        lastPlayed: new Date().toISOString()
-    };
-}
-
-// Timer functions
-function formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-
-function setTimerDuration(minutes: number): void {
-    timerState.duration = minutes;
-    timerState.timeLeft = minutes * 60;
-
-    if (timerDisplay) {
-        timerDisplay.textContent = formatTime(timerState.timeLeft);
-    }
-}
-
-function startTimer(): void {
-    if (timerState.isRunning) return;
-
-    timerState.isRunning = true;
-    timerState.startTime = Date.now();
-
-    timerState.intervalId = window.setInterval(() => {
-        timerState.timeLeft--;
-
-        if (timerDisplay) {
-            timerDisplay.textContent = formatTime(timerState.timeLeft);
-        }
-
-        // Visual warning when time < 1 minute
-        if (timerCard && timerState.timeLeft <= 60) {
-            timerCard.classList.add('warning');
-        }
-
-        // Stop timer when time runs out
-        if (timerState.timeLeft <= 0) {
-            stopTimer();
-            endGame();
-        }
-    }, 1000);
-}
-
-function stopTimer(): void {
-    if (timerState.intervalId !== null) {
-        clearInterval(timerState.intervalId);
-        timerState.intervalId = null;
-    }
-    timerState.isRunning = false;
-
-    if (timerCard) {
-        timerCard.classList.remove('warning');
-    }
-}
-
-function resetTimer(): void {
-    stopTimer();
-    timerState.timeLeft = timerState.duration * 60;
-
-    if (timerDisplay) {
-        timerDisplay.textContent = formatTime(timerState.timeLeft);
-    }
-
-    if (timerCard) {
-        timerCard.classList.remove('warning');
-    }
-}
-
-function getGameStats(): GameStats {
-    return {
-        attempts: gameState.score + gameState.wrongAnswers,
-        correct: gameState.score,
-        wrong: gameState.wrongAnswers,
-        stars: gameState.totalStars
-    };
-}
-
-function calculatePlayTime(): number {
-    if (timerState.startTime > 0) {
-        return Math.floor((Date.now() - timerState.startTime) / 1000);
-    }
-    return 0;
-}
-
-function showEndGameModal(isTimeUp: boolean = true): void {
-    const stats = getGameStats();
-    const playTime = calculatePlayTime();
-
-    // Update title based on how game ended
-    if (endGameTitle) {
-        endGameTitle.textContent = isTimeUp ? '⏰ Waktu Habis!' : '⏹️ Permainan Dihentikan';
-    }
-
-    // Display play time
-    if (endTime) {
-        endTime.textContent = formatTime(playTime);
-    }
-
-    if (endAttempts) {
-        endAttempts.textContent = stats.attempts.toString();
-    }
-    if (endCorrect) {
-        endCorrect.textContent = stats.correct.toString();
-    }
-    if (endWrong) {
-        endWrong.textContent = stats.wrong.toString();
-    }
-    if (endStars) {
-        endStars.textContent = stats.stars.toString();
-    }
-
-    if (endGameModal) {
-        endGameModal.style.display = 'flex';
-    }
-}
-
-function endGame(): void {
-    stopTimer();
-    showEndGameModal(true);
-
-    // Disable all buttons
-    optionButtons.forEach(btn => {
+function disableOptionButtons(): void {
+    DOM.optionButtons.forEach(btn => {
         btn.disabled = true;
     });
 }
 
-function stopGame(): void {
-    stopTimer();
-    showEndGameModal(false);
-
-    // Disable all buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = true;
+function markCorrectAnswer(correctValue: number): void {
+    DOM.optionButtons.forEach(btn => {
+        if (parseInt(btn.dataset.value || '0') === correctValue) {
+            btn.classList.add('correct');
+        }
     });
 }
 
-function resetGameWithTimer(minutes: number): void {
-    // Stop current timer if running
-    stopTimer();
+function markWrongAnswer(selectedValue: number): void {
+    DOM.optionButtons.forEach(btn => {
+        if (parseInt(btn.dataset.value || '0') === selectedValue) {
+            btn.classList.add('wrong');
+        }
+    });
+}
 
-    // Reset timer
-    setTimerDuration(minutes);
-    resetTimer();
+function nextQuestion(): void {
+    const level = gameState.currentLevel;
+    gameState.currentCount = randomInt(level.min, level.max);
+    gameState.correctAnswer = gameState.currentCount;
+    gameState.options = generateOptions(gameState.correctAnswer);
+    gameState.isAnswered = false;
+    gameState.questionStartTime = Date.now();
 
-    // Reset game state
+    generateVisual(gameState.currentCount);
+    updateOptions(gameState.options);
+    resetOptionButtons();
+}
+
+function setLevel(levelKey: string): void {
+    const level = LEVELS[levelKey];
+    if (!level) return;
+
+    gameState.currentLevel = level;
     gameState.score = 0;
     gameState.wrongAnswers = 0;
     gameState.totalStars = 0;
 
-    if (scoreElement) {
-        scoreElement.textContent = '0';
+    if (DOM.scoreElement) {
+        DOM.scoreElement.textContent = '0';
+        DOM.scoreElement.classList.remove('updated');
     }
-    if (totalStarsElement) {
-        totalStarsElement.textContent = '0';
-    }
-
-    // Hide end game modal
-    if (endGameModal) {
-        endGameModal.style.display = 'none';
+    if (DOM.totalStarsElement) {
+        DOM.totalStarsElement.textContent = '0';
+        DOM.totalStarsElement.classList.remove('updated');
     }
 
-    // Re-enable buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = false;
-        btn.classList.remove('correct', 'wrong');
-    });
+    if (!timerState.isRunning) {
+        resetTimer();
+    }
 
-    // Start new question
     nextQuestion();
-
-    // Timer will start when user answers first question
 }
 
-// Update stat value with animation
+// ============================================================================
+// FEEDBACK & ANIMATIONS
+// ============================================================================
+
 function updateStatValue(element: HTMLElement, newValue: string): void {
     element.textContent = newValue;
     element.classList.add('updated');
     setTimeout(() => {
         element.classList.remove('updated');
-    }, 500);
+    }, GAME_CONFIG.STAT_ANIMATION_DURATION);
 }
 
-// Show feedback
 function showFeedback(isCorrect: boolean): void {
-    feedbackElement.classList.remove('hidden', 'correct', 'wrong');
+    if (!DOM.feedbackElement) return;
 
-    if (isCorrect) {
-        feedbackElement.textContent = '🎉 Benar! Bagus sekali!';
-        feedbackElement.classList.add('correct');
-    } else {
-        feedbackElement.textContent = '😔 Belum tepat, coba lagi!';
-        feedbackElement.classList.add('wrong');
-    }
+    DOM.feedbackElement.classList.remove('hidden', 'correct', 'wrong');
+    DOM.feedbackElement.textContent = isCorrect
+        ? FEEDBACK_MESSAGES.CORRECT
+        : FEEDBACK_MESSAGES.WRONG;
+    DOM.feedbackElement.classList.add(isCorrect ? 'correct' : 'wrong');
 
-    // Hide feedback after 2 seconds
     setTimeout(() => {
-        feedbackElement.classList.add('hidden');
-    }, 2000);
+        DOM.feedbackElement.classList.add('hidden');
+    }, GAME_CONFIG.FEEDBACK_DISPLAY_DURATION);
 }
 
-// Calculate star rating based on response time
 function calculateStarRating(): number {
     const responseTime = Date.now() - gameState.questionStartTime;
-    const level = gameState.currentLevel;
+    const levelName = gameState.currentLevel.name.toLowerCase();
+    const thresholds = STAR_RATING_THRESHOLDS[levelName as keyof typeof STAR_RATING_THRESHOLDS]
+        || STAR_RATING_THRESHOLDS.easy;
 
-    // Base time thresholds (in milliseconds)
-    // Easy: 10 seconds, Medium: 15 seconds, Hard: 20 seconds, Extreme: 25 seconds
-    const timeThresholds: Record<string, { three: number; two: number }> = {
-        easy: { three: 5000, two: 10000 },
-        medium: { three: 7000, two: 15000 },
-        hard: { three: 10000, two: 20000 },
-        extreme: { three: 12000, two: 25000 }
-    };
-
-    const thresholds = timeThresholds[level.name.toLowerCase()] || timeThresholds.easy;
-
-    if (responseTime <= thresholds.three) {
-        return 3; // ⭐⭐⭐
-    } else if (responseTime <= thresholds.two) {
-        return 2; // ⭐⭐
-    } else {
-        return 1; // ⭐
-    }
+    if (responseTime <= thresholds.three) return 3;
+    if (responseTime <= thresholds.two) return 2;
+    return 1;
 }
 
-// Show star rating with animation
-function showStarRating(rating: number): void {
-    starRatingElement.classList.remove('hidden');
-    const stars = starRatingElement.querySelectorAll('.star') as NodeListOf<HTMLElement>;
+function resetStarDisplay(): void {
+    if (!DOM.starRatingElement) return;
 
-    // Reset all stars
+    const stars = DOM.starRatingElement.querySelectorAll('.star') as NodeListOf<HTMLElement>;
     stars.forEach(star => {
         star.classList.remove('active', 'animate');
         star.style.opacity = '0.3';
     });
+}
 
-    // Animate stars one by one
+function animateStars(rating: number): void {
+    if (!DOM.starRatingElement) return;
+
+    const stars = DOM.starRatingElement.querySelectorAll('.star') as NodeListOf<HTMLElement>;
+    resetStarDisplay();
+
     for (let i = 0; i < rating; i++) {
         setTimeout(() => {
             stars[i].classList.add('active', 'animate');
             stars[i].style.opacity = '1';
-        }, i * 200); // Stagger animation
+        }, i * GAME_CONFIG.STAR_ANIMATION_DELAY);
+    }
+}
+
+function showStarRating(rating: number): void {
+    if (!DOM.starRatingElement) return;
+
+    DOM.starRatingElement.classList.remove('hidden');
+    animateStars(rating);
+
+    gameState.totalStars += rating;
+    if (DOM.totalStarsElement) {
+        updateStatValue(DOM.totalStarsElement, gameState.totalStars.toString());
     }
 
-    // Update total stars
-    gameState.totalStars += rating;
-    updateStatValue(totalStarsElement, gameState.totalStars.toString());
-
-    // Save to localStorage
     savePlayerData();
 
-    // Hide stars after 2.5 seconds
     setTimeout(() => {
-        starRatingElement.classList.add('hidden');
-        stars.forEach(star => {
-            star.classList.remove('active', 'animate');
-            star.style.opacity = '0.3';
-        });
-    }, 2500);
+        DOM.starRatingElement.classList.add('hidden');
+        resetStarDisplay();
+    }, GAME_CONFIG.STAR_DISPLAY_DURATION);
 }
 
-// Play applause sound
+// ============================================================================
+// AUDIO & SOUNDS
+// ============================================================================
+
 function playCelebrationSound(): void {
-    // Check if browser supports Web Audio API
-    if (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined') {
-        try {
-            const AudioContextClass = AudioContext || (window as any).webkitAudioContext;
-            const audioContext = new AudioContextClass();
+    if (typeof AudioContext === 'undefined' && typeof (window as any).webkitAudioContext === 'undefined') {
+        return;
+    }
 
-            // Create applause sound using multiple claps
-            const duration = 1.5; // 1.5 seconds
-            const sampleRate = audioContext.sampleRate;
-            const buffer = audioContext.createBuffer(2, sampleRate * duration, sampleRate);
+    try {
+        const AudioContextClass = AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContextClass();
+        const sampleRate = audioContext.sampleRate;
+        const buffer = audioContext.createBuffer(
+            2,
+            sampleRate * AUDIO_CONFIG.APPLAUSE_DURATION,
+            sampleRate
+        );
 
-            // Generate multiple claps (applause)
-            const numClaps = 8;
-            for (let clap = 0; clap < numClaps; clap++) {
-                const clapTime = (clap / numClaps) * duration + Math.random() * 0.1;
-                const clapSample = Math.floor(clapTime * sampleRate);
+        for (let clap = 0; clap < AUDIO_CONFIG.NUM_CLAPS; clap++) {
+            const clapTime = (clap / AUDIO_CONFIG.NUM_CLAPS) * AUDIO_CONFIG.APPLAUSE_DURATION
+                + Math.random() * 0.1;
+            const clapSample = Math.floor(clapTime * sampleRate);
+            const clapSamples = Math.floor(AUDIO_CONFIG.CLAP_DURATION * sampleRate);
 
-                // Each clap is a short burst of noise
-                const clapDuration = 0.05; // 50ms per clap
-                const clapSamples = Math.floor(clapDuration * sampleRate);
-
-                for (let channel = 0; channel < 2; channel++) {
-                    const channelData = buffer.getChannelData(channel);
-
-                    for (let i = 0; i < clapSamples && (clapSample + i) < channelData.length; i++) {
-                        const t = i / clapSamples;
-                        // Create clap sound: white noise with envelope
-                        const noise = (Math.random() * 2 - 1) * (1 - t); // Decay envelope
-                        channelData[clapSample + i] += noise * 0.3;
-                    }
+            for (let channel = 0; channel < 2; channel++) {
+                const channelData = buffer.getChannelData(channel);
+                for (let i = 0; i < clapSamples && (clapSample + i) < channelData.length; i++) {
+                    const t = i / clapSamples;
+                    const noise = (Math.random() * 2 - 1) * (1 - t);
+                    channelData[clapSample + i] += noise * 0.3;
                 }
             }
-
-            // Play the applause
-            const source = audioContext.createBufferSource();
-            source.buffer = buffer;
-
-            // Add gain node for volume control
-            const gainNode = audioContext.createGain();
-            gainNode.gain.value = 0.5;
-
-            source.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            source.start(0);
-
-            // Clean up after playback
-            source.onended = () => {
-                audioContext.close();
-            };
-        } catch (error) {
-            console.log('Audio playback error:', error);
         }
-    }
-}
 
-// Play wrong answer sound
-function playWrongAnswerSound(): void {
-    // Check if browser supports speech synthesis
-    if ('speechSynthesis' in window) {
-        const messages = ['Oops, coba lagi!', 'Hampir benar, coba sekali lagi'];
-        const randomMessage = messages[randomInt(0, messages.length - 1)];
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = AUDIO_CONFIG.GAIN_VALUE;
 
-        const speak = () => {
-            const utterance = new SpeechSynthesisUtterance(randomMessage);
-            utterance.volume = 0.8;
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        source.start(0);
 
-            // Use Indonesian voice if available, otherwise use default
-            const voices = speechSynthesis.getVoices();
-            const indonesianVoice = voices.find(voice =>
-                voice.lang.includes('id') || voice.lang.includes('ID')
-            );
-            if (indonesianVoice) {
-                utterance.voice = indonesianVoice;
-            }
-
-            speechSynthesis.speak(utterance);
+        source.onended = () => {
+            audioContext.close();
         };
-
-        // Ensure voices are loaded
-        if (speechSynthesis.getVoices().length > 0) {
-            speak();
-        } else {
-            speechSynthesis.addEventListener('voiceschanged', speak, { once: true });
-        }
+    } catch (error) {
+        console.error('Audio playback error:', error);
     }
 }
 
-// Trigger confetti
+function playWrongAnswerSound(): void {
+    if (!('speechSynthesis' in window)) return;
+
+    const messages = SPEECH_MESSAGES;
+    const randomMessage = messages[randomInt(0, messages.length - 1)];
+
+    const speak = () => {
+        const utterance = new SpeechSynthesisUtterance(randomMessage);
+        utterance.volume = AUDIO_CONFIG.SPEECH_VOLUME;
+        utterance.rate = AUDIO_CONFIG.SPEECH_RATE;
+        utterance.pitch = AUDIO_CONFIG.SPEECH_PITCH;
+
+        const voices = speechSynthesis.getVoices();
+        const indonesianVoice = voices.find(voice =>
+            voice.lang.includes('id') || voice.lang.includes('ID')
+        );
+        if (indonesianVoice) {
+            utterance.voice = indonesianVoice;
+        }
+
+        speechSynthesis.speak(utterance);
+    };
+
+    if (speechSynthesis.getVoices().length > 0) {
+        speak();
+    } else {
+        speechSynthesis.addEventListener('voiceschanged', speak, { once: true });
+    }
+}
+
+// ============================================================================
+// CONFETTI
+// ============================================================================
+
 function triggerConfetti(): void {
-    const duration = 3000;
+    const duration = CONFETTI_CONFIG.DURATION;
     const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+    const defaults = {
+        startVelocity: CONFETTI_CONFIG.START_VELOCITY,
+        spread: CONFETTI_CONFIG.SPREAD,
+        ticks: CONFETTI_CONFIG.TICKS,
+        zIndex: CONFETTI_CONFIG.Z_INDEX
+    };
 
     function randomInRange(min: number, max: number): number {
         return Math.random() * (max - min) + min;
@@ -619,12 +581,12 @@ function triggerConfetti(): void {
 
     const interval = setInterval(() => {
         const timeLeft = animationEnd - Date.now();
-
         if (timeLeft <= 0) {
-            return clearInterval(interval);
+            clearInterval(interval);
+            return;
         }
 
-        const particleCount = 50 * (timeLeft / duration);
+        const particleCount = CONFETTI_CONFIG.PARTICLE_MULTIPLIER * (timeLeft / duration);
 
         // @ts-ignore - confetti is loaded from CDN
         confetti({
@@ -638,14 +600,45 @@ function triggerConfetti(): void {
             particleCount,
             origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
         });
-    }, 250);
+    }, CONFETTI_CONFIG.INTERVAL);
 }
 
-// Check answer
+// ============================================================================
+// ANSWER HANDLING
+// ============================================================================
+
+function handleCorrectAnswer(): void {
+    gameState.score++;
+    if (DOM.scoreElement) {
+        updateStatValue(DOM.scoreElement, gameState.score.toString());
+    }
+
+    showFeedback(true);
+    triggerConfetti();
+    playCelebrationSound();
+
+    const starRating = calculateStarRating();
+    showStarRating(starRating);
+
+    setTimeout(() => {
+        nextQuestion();
+    }, GAME_CONFIG.NEXT_QUESTION_DELAY);
+}
+
+function handleWrongAnswer(selectedValue: number): void {
+    gameState.wrongAnswers++;
+    showFeedback(false);
+    playWrongAnswerSound();
+
+    setTimeout(() => {
+        gameState.isAnswered = false;
+        resetOptionButtons();
+    }, GAME_CONFIG.FEEDBACK_DISPLAY_DURATION);
+}
+
 function checkAnswer(selectedValue: number): void {
     if (gameState.isAnswered) return;
 
-    // Start timer on first answer
     if (!timerState.isRunning && timerState.timeLeft > 0) {
         startTimer();
     }
@@ -653,303 +646,405 @@ function checkAnswer(selectedValue: number): void {
     gameState.isAnswered = true;
     const isCorrect = selectedValue === gameState.correctAnswer;
 
-    // Disable all buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = true;
-        if (parseInt(btn.dataset.value || '0') === gameState.correctAnswer) {
-            btn.classList.add('correct');
-        }
-        if (parseInt(btn.dataset.value || '0') === selectedValue && !isCorrect) {
-            btn.classList.add('wrong');
-        }
-    });
+    disableOptionButtons();
+    markCorrectAnswer(gameState.correctAnswer);
+    if (!isCorrect) {
+        markWrongAnswer(selectedValue);
+    }
 
     if (isCorrect) {
-        gameState.score++;
-        updateStatValue(scoreElement, gameState.score.toString());
-        showFeedback(true);
-        triggerConfetti();
-        playCelebrationSound();
-
-        // Calculate and show star rating
-        const starRating = calculateStarRating();
-        showStarRating(starRating);
-
-        // Next question after 2.5 seconds
-        setTimeout(() => {
-            nextQuestion();
-        }, 2500);
+        handleCorrectAnswer();
     } else {
-        gameState.wrongAnswers++;
-        showFeedback(false);
-        playWrongAnswerSound();
-
-        // Re-enable after feedback
-        setTimeout(() => {
-            gameState.isAnswered = false;
-            optionButtons.forEach(btn => {
-                btn.disabled = false;
-                btn.classList.remove('correct', 'wrong');
-            });
-        }, 2000);
+        handleWrongAnswer(selectedValue);
     }
 }
 
-// Set level and reset game
-function setLevel(levelKey: string): void {
-    const level = levels[levelKey];
-    if (!level) return;
+// ============================================================================
+// TIMER FUNCTIONS
+// ============================================================================
 
-    gameState.currentLevel = level;
-    gameState.score = 0;
-    gameState.wrongAnswers = 0;
+function setTimerDuration(minutes: number): void {
+    timerState.duration = minutes;
+    timerState.timeLeft = minutes * GAME_CONFIG.SECONDS_PER_MINUTE;
 
-    // Reset stars when starting new game (don't load from localStorage)
-    gameState.totalStars = 0;
+    if (DOM.timerDisplay) {
+        DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+}
 
-    scoreElement.textContent = '0';
-    totalStarsElement.textContent = '0';
-    scoreElement.classList.remove('updated');
-    totalStarsElement.classList.remove('updated');
+function startTimer(): void {
+    if (timerState.isRunning) return;
 
-    // Note: Level buttons are removed from game container
-    // Level is set at the beginning and cannot be changed during game
+    timerState.isRunning = true;
+    timerState.startTime = Date.now();
 
-    // Reset timer if not running
-    if (!timerState.isRunning) {
-        resetTimer();
+    timerState.intervalId = window.setInterval(() => {
+        timerState.timeLeft--;
+
+        if (DOM.timerDisplay) {
+            DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
+        }
+
+        if (DOM.timerCard && timerState.timeLeft <= GAME_CONFIG.TIMER_WARNING_THRESHOLD) {
+            DOM.timerCard.classList.add('warning');
+        }
+
+        if (timerState.timeLeft <= 0) {
+            stopTimer();
+            endGame();
+        }
+    }, GAME_CONFIG.TIMER_UPDATE_INTERVAL);
+}
+
+function stopTimer(): void {
+    if (timerState.intervalId !== null) {
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+    }
+    timerState.isRunning = false;
+
+    if (DOM.timerCard) {
+        DOM.timerCard.classList.remove('warning');
+    }
+}
+
+function resetTimer(): void {
+    stopTimer();
+    timerState.timeLeft = timerState.duration * GAME_CONFIG.SECONDS_PER_MINUTE;
+
+    if (DOM.timerDisplay) {
+        DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
     }
 
-    // Generate new question with new level
+    if (DOM.timerCard) {
+        DOM.timerCard.classList.remove('warning');
+    }
+}
+
+function calculatePlayTime(): number {
+    if (timerState.startTime > 0) {
+        return Math.floor((Date.now() - timerState.startTime) / 1000);
+    }
+    return 0;
+}
+
+// ============================================================================
+// LOCAL STORAGE
+// ============================================================================
+
+function savePlayerData(): void {
+    if (!playerData) return;
+
+    playerData.totalStars = gameState.totalStars;
+    playerData.lastPlayed = new Date().toISOString();
+
+    try {
+        localStorage.setItem(GAME_CONFIG.STORAGE_KEY, JSON.stringify(playerData));
+    } catch (error) {
+        console.error('Error saving player data:', error);
+    }
+}
+
+function loadPlayerData(): PlayerData | null {
+    try {
+        const saved = localStorage.getItem(GAME_CONFIG.STORAGE_KEY);
+        if (!saved) return null;
+
+        return JSON.parse(saved) as PlayerData;
+    } catch (error) {
+        console.error('Error loading player data:', error);
+        return null;
+    }
+}
+
+function createPlayerData(name: string): PlayerData {
+    return {
+        name: name.trim(),
+        totalStars: 0,
+        lastPlayed: new Date().toISOString()
+    };
+}
+
+// ============================================================================
+// GAME STATISTICS
+// ============================================================================
+
+function getGameStats(): GameStats {
+    return {
+        attempts: gameState.score + gameState.wrongAnswers,
+        correct: gameState.score,
+        wrong: gameState.wrongAnswers,
+        stars: gameState.totalStars
+    };
+}
+
+function showEndGameModal(isTimeUp: boolean = true): void {
+    const stats = getGameStats();
+    const playTime = calculatePlayTime();
+
+    if (DOM.endGameTitle) {
+        DOM.endGameTitle.textContent = isTimeUp
+            ? END_GAME_TITLES.TIME_UP
+            : END_GAME_TITLES.STOPPED;
+    }
+
+    if (DOM.endTime) {
+        DOM.endTime.textContent = formatTime(playTime);
+    }
+
+    if (DOM.endAttempts) {
+        DOM.endAttempts.textContent = stats.attempts.toString();
+    }
+    if (DOM.endCorrect) {
+        DOM.endCorrect.textContent = stats.correct.toString();
+    }
+    if (DOM.endWrong) {
+        DOM.endWrong.textContent = stats.wrong.toString();
+    }
+    if (DOM.endStars) {
+        DOM.endStars.textContent = stats.stars.toString();
+    }
+
+    if (DOM.endGameModal) {
+        DOM.endGameModal.style.display = 'flex';
+    }
+}
+
+function endGame(): void {
+    stopTimer();
+    showEndGameModal(true);
+    disableOptionButtons();
+}
+
+function stopGame(): void {
+    stopTimer();
+    showEndGameModal(false);
+    disableOptionButtons();
+}
+
+function resetGameWithTimer(minutes: number): void {
+    stopTimer();
+    setTimerDuration(minutes);
+    resetTimer();
+
+    gameState.score = 0;
+    gameState.wrongAnswers = 0;
+    gameState.totalStars = 0;
+
+    if (DOM.scoreElement) {
+        DOM.scoreElement.textContent = '0';
+    }
+    if (DOM.totalStarsElement) {
+        DOM.totalStarsElement.textContent = '0';
+    }
+
+    if (DOM.endGameModal) {
+        DOM.endGameModal.style.display = 'none';
+    }
+
+    resetOptionButtons();
     nextQuestion();
 }
 
-// Generate new question
-function nextQuestion(): void {
-    const level = gameState.currentLevel;
-    gameState.currentCount = randomInt(level.min, level.max);
-    gameState.correctAnswer = gameState.currentCount;
-    gameState.options = generateOptions(gameState.correctAnswer);
-    gameState.isAnswered = false;
-    gameState.questionStartTime = Date.now(); // Start timer for star rating
+// ============================================================================
+// FORM HANDLING
+// ============================================================================
 
-    generateVisual(gameState.currentCount);
-    updateOptions(gameState.options);
-
-    // Reset button states
-    optionButtons.forEach(btn => {
-        btn.classList.remove('correct', 'wrong');
-        btn.disabled = false;
-    });
-}
-
-// Reset player form
 function resetPlayerForm(): void {
-    const nameInput = document.getElementById('player-name') as HTMLInputElement;
-
+    const nameInput = safeGetElementById<HTMLInputElement>('player-name');
     if (nameInput) {
         nameInput.value = '';
     }
 
-    // Reset level selection to default (Easy)
-    modalLevelButtons.forEach(btn => {
+    DOM.modalLevelButtons.forEach(btn => {
         btn.classList.remove('active');
     });
 
-    const defaultLevelBtn = document.getElementById('modal-level-easy');
+    const defaultLevelBtn = safeGetElementById<HTMLButtonElement>('modal-level-easy');
     if (defaultLevelBtn) {
         defaultLevelBtn.classList.add('active');
     }
+    selectedLevel = GAME_CONFIG.DEFAULT_LEVEL;
 
-    selectedLevel = 'easy';
+    DOM.modalTimerButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
 
-    // Reset timer selection to default (5 minutes)
-    if (modalTimerButtons.length > 0) {
-        modalTimerButtons.forEach(btn => {
-            btn.classList.remove('active');
-        });
-
-        const defaultTimerBtn = document.getElementById('modal-timer-5');
-        if (defaultTimerBtn) {
-            defaultTimerBtn.classList.add('active');
-        }
-
-        selectedTimerDuration = 5;
+    const defaultTimerBtn = safeGetElementById<HTMLButtonElement>('modal-timer-5');
+    if (defaultTimerBtn) {
+        defaultTimerBtn.classList.add('active');
     }
+    selectedTimerDuration = GAME_CONFIG.DEFAULT_TIMER_MINUTES;
 }
 
-// Back to main menu
 function backToMainMenu(): void {
-    // Stop timer
     stopTimer();
 
-    // Reset game state
     gameState.score = 0;
     gameState.wrongAnswers = 0;
     gameState.isAnswered = false;
 
-    // Hide end game modal
-    if (endGameModal) {
-        endGameModal.style.display = 'none';
+    if (DOM.endGameModal) {
+        DOM.endGameModal.style.display = 'none';
     }
 
-    // Hide game container
-    if (gameContainer) {
-        gameContainer.style.display = 'none';
+    if (DOM.gameContainer) {
+        DOM.gameContainer.style.display = 'none';
     }
 
-    // Reset player form
     resetPlayerForm();
 
-    // Show player modal
-    if (playerModal) {
-        playerModal.style.display = 'flex';
+    if (DOM.playerModal) {
+        DOM.playerModal.style.display = 'flex';
     }
 
-    // Reset game logic initialization flag
     gameLogicInitialized = false;
 }
 
-// Handle player form submission
 function handlePlayerFormSubmit(event: Event): void {
     event.preventDefault();
 
-    const formData = new FormData(playerForm);
-    const name = (formData.get('name') as string).trim();
+    const formData = new FormData(DOM.playerForm);
+    const name = (formData.get('name') as string)?.trim();
 
-    if (name) {
-        // Create or update player data
-        playerData = createPlayerData(name);
-
-        // Update player name display
-        if (playerNameDisplay) {
-            playerNameDisplay.textContent = name;
-        }
-
-        // Reset stars when starting new game session
-        gameState.totalStars = 0;
-        if (totalStarsElement) {
-            totalStarsElement.textContent = '0';
-        }
-
-        // Set timer duration from selected value
-        setTimerDuration(selectedTimerDuration);
-
-        // Save to localStorage (with reset stars)
-        savePlayerData();
-
-        // Hide modal and show game
-        playerModal.style.display = 'none';
-        gameContainer.style.display = 'block';
-
-        // Initialize game
-        initGameLogic();
+    if (!name || name.length < GAME_CONFIG.MIN_NAME_LENGTH || name.length > GAME_CONFIG.MAX_NAME_LENGTH) {
+        return;
     }
+
+    playerData = createPlayerData(name);
+
+    if (DOM.playerNameDisplay) {
+        DOM.playerNameDisplay.textContent = name;
+    }
+
+    gameState.totalStars = 0;
+    if (DOM.totalStarsElement) {
+        DOM.totalStarsElement.textContent = '0';
+    }
+
+    setTimerDuration(selectedTimerDuration);
+    savePlayerData();
+
+    if (DOM.playerModal) {
+        DOM.playerModal.style.display = 'none';
+    }
+    if (DOM.gameContainer) {
+        DOM.gameContainer.style.display = 'block';
+    }
+
+    initGameLogic();
 }
 
-// Flag to prevent duplicate event listeners
-let gameLogicInitialized = false;
+// ============================================================================
+// EVENT LISTENERS SETUP
+// ============================================================================
 
-// Initialize game logic
-function initGameLogic(): void {
-    // Only initialize once
-    if (gameLogicInitialized) return;
-    gameLogicInitialized = true;
-
-    // Stop game button
-    if (stopGameBtn) {
-        stopGameBtn.addEventListener('click', () => {
-            stopGame();
+function setupModalLevelButtons(): void {
+    DOM.modalLevelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            DOM.modalLevelButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedLevel = btn.dataset.level || GAME_CONFIG.DEFAULT_LEVEL;
         });
-    }
-
-    // End game modal timer option buttons
-    if (endGameModal) {
-        const endGameTimerOptions = endGameModal.querySelectorAll('.timer-option-btn');
-        endGameTimerOptions.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const minutes = parseInt(btn.getAttribute('data-minutes') || '10');
-                resetGameWithTimer(minutes);
-            });
-        });
-    }
-
-    // Back to menu button
-    if (backToMenuBtn) {
-        backToMenuBtn.addEventListener('click', () => {
-            backToMainMenu();
-        });
-    }
-
-    // ESC key handler for back to menu
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && endGameModal && endGameModal.style.display === 'flex') {
-            backToMainMenu();
-        }
     });
+}
 
-    // Add event listeners to option buttons
-    optionButtons.forEach(btn => {
+function setupModalTimerButtons(): void {
+    DOM.modalTimerButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            DOM.modalTimerButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTimerDuration = parseInt(btn.dataset.minutes || String(GAME_CONFIG.DEFAULT_TIMER_MINUTES));
+        });
+    });
+}
+
+function setupGameButtons(): void {
+    if (DOM.stopGameBtn) {
+        DOM.stopGameBtn.addEventListener('click', stopGame);
+    }
+
+    if (DOM.backToMenuBtn) {
+        DOM.backToMenuBtn.addEventListener('click', backToMainMenu);
+    }
+
+    DOM.optionButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const value = parseInt(btn.dataset.value || '0');
             checkAnswer(value);
         });
     });
-
-    // Set selected level and start first question
-    setLevel(selectedLevel);
-
-    // Timer will start when user answers first question
 }
 
-// Initialize app
-function initApp(): void {
-    // Initialize level selection in modal
-    modalLevelButtons.forEach(btn => {
+function setupEndGameModalButtons(): void {
+    if (!DOM.endGameModal) return;
+
+    const timerOptions = DOM.endGameModal.querySelectorAll('.timer-option-btn');
+    timerOptions.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Remove active class from all buttons
-            modalLevelButtons.forEach(b => b.classList.remove('active'));
-            // Add active class to clicked button
-            btn.classList.add('active');
-            // Set selected level
-            selectedLevel = btn.dataset.level || 'easy';
+            const minutes = parseInt(btn.getAttribute('data-minutes') || String(GAME_CONFIG.DEFAULT_TIMER_MINUTES));
+            resetGameWithTimer(minutes);
         });
     });
+}
 
-    // Set default level (Easy) as active
-    const defaultLevelBtn = document.getElementById('modal-level-easy');
+function setupKeyboardShortcuts(): void {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && DOM.endGameModal && DOM.endGameModal.style.display === 'flex') {
+            backToMainMenu();
+        }
+    });
+}
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+function initGameLogic(): void {
+    if (gameLogicInitialized) return;
+    gameLogicInitialized = true;
+
+    setupGameButtons();
+    setupEndGameModalButtons();
+    setupKeyboardShortcuts();
+
+    setLevel(selectedLevel);
+}
+
+function initApp(): void {
+    setupModalLevelButtons();
+    setupModalTimerButtons();
+
+    const defaultLevelBtn = safeGetElementById<HTMLButtonElement>('modal-level-easy');
     if (defaultLevelBtn) {
         defaultLevelBtn.classList.add('active');
     }
 
-    // Check if player data exists
     const savedData = loadPlayerData();
-
-    // Always reset form when showing modal
     resetPlayerForm();
 
     if (savedData) {
-        // Load existing player data
         playerData = savedData;
         gameState.totalStars = savedData.totalStars;
 
-        // Update player name display if game container is visible
-        if (playerNameDisplay && gameContainer.style.display !== 'none') {
-            playerNameDisplay.textContent = savedData.name;
+        if (DOM.playerNameDisplay && DOM.gameContainer.style.display !== 'none') {
+            DOM.playerNameDisplay.textContent = savedData.name;
         }
     }
 
-    // Show modal
-    playerModal.style.display = 'flex';
+    if (DOM.playerModal) {
+        DOM.playerModal.style.display = 'flex';
+    }
 
-    // Add form submit handler
-    playerForm.addEventListener('submit', handlePlayerFormSubmit);
+    DOM.playerForm.addEventListener('submit', handlePlayerFormSubmit);
 }
 
-// Start app when DOM is loaded
+// ============================================================================
+// APP START
+// ============================================================================
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {
     initApp();
 }
-

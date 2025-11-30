@@ -1,81 +1,159 @@
 "use strict";
-const levels = {
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+const GAME_CONFIG = {
+    DEFAULT_LEVEL: 'easy',
+    DEFAULT_TIMER_MINUTES: 5,
+    SECONDS_PER_MINUTE: 60,
+    TIMER_WARNING_THRESHOLD: 60, // seconds
+    TIMER_UPDATE_INTERVAL: 1000, // milliseconds
+    FEEDBACK_DISPLAY_DURATION: 2000, // milliseconds
+    NEXT_QUESTION_DELAY: 2500, // milliseconds
+    STAR_ANIMATION_DELAY: 200, // milliseconds
+    STAR_DISPLAY_DURATION: 2500, // milliseconds
+    STAT_ANIMATION_DURATION: 500, // milliseconds
+    MIN_NAME_LENGTH: 2,
+    MAX_NAME_LENGTH: 20,
+    OPTIONS_COUNT: 4,
+    MAX_GRID_COLS_SMALL: 10,
+    MAX_GRID_COLS_MEDIUM: 25,
+    GRID_COLS_SMALL: 5,
+    GRID_COLS_LARGE: 10,
+    VISUAL_TYPES: {
+        EMOJI: 0,
+        SVG: 1,
+        MIX: 2
+    },
+    STORAGE_KEY: 'playerData'
+};
+const TIMER_DURATIONS = {
+    MIN_5: 5,
+    MIN_10: 10,
+    MIN_15: 15
+};
+const FEEDBACK_MESSAGES = {
+    CORRECT: '🎉 Benar! Bagus sekali!',
+    WRONG: '😔 Belum tepat, coba lagi!'
+};
+const END_GAME_TITLES = {
+    TIME_UP: '⏰ Waktu Habis!',
+    STOPPED: '⏹️ Permainan Dihentikan'
+};
+const SPEECH_MESSAGES = [
+    'Oops, coba lagi!',
+    'Hampir benar, coba sekali lagi'
+];
+const AUDIO_CONFIG = {
+    APPLAUSE_DURATION: 1.5, // seconds
+    NUM_CLAPS: 8,
+    CLAP_DURATION: 0.05, // seconds
+    GAIN_VALUE: 0.5,
+    SPEECH_VOLUME: 0.8,
+    SPEECH_RATE: 1.0,
+    SPEECH_PITCH: 1.0
+};
+const STAR_RATING_THRESHOLDS = {
+    easy: { three: 5000, two: 10000 },
+    medium: { three: 7000, two: 15000 },
+    hard: { three: 10000, two: 20000 },
+    extreme: { three: 12000, two: 25000 }
+};
+const CONFETTI_CONFIG = {
+    DURATION: 3000,
+    START_VELOCITY: 30,
+    SPREAD: 360,
+    TICKS: 60,
+    Z_INDEX: 0,
+    INTERVAL: 250,
+    PARTICLE_MULTIPLIER: 50
+};
+// ============================================================================
+// DATA CONFIGURATION
+// ============================================================================
+const LEVELS = {
     easy: { name: 'Easy', min: 1, max: 10 },
     medium: { name: 'Medium', min: 11, max: 20 },
     hard: { name: 'Hard', min: 20, max: 30 },
     extreme: { name: 'Extreme', min: 31, max: 50 }
 };
-let gameState = {
-    currentCount: 0,
-    correctAnswer: 0,
-    options: [],
-    score: 0,
-    isAnswered: false,
-    currentLevel: levels.easy, // Default to Easy
-    totalStars: 0,
-    questionStartTime: 0,
-    wrongAnswers: 0
-};
-// Selected level from modal (will be set before game starts)
-let selectedLevel = 'easy';
-let timerState = {
-    duration: 5, // Default 5 minutes
-    timeLeft: 300, // 5 minutes in seconds
-    isRunning: false,
-    startTime: 0,
-    intervalId: null
-};
-// Selected timer duration from modal (will be set before game starts)
-let selectedTimerDuration = 5;
-// Emoji library
-const emojis = [
+const EMOJIS = [
     '🍎', '⭐', '⚽', '🎈', '🎨', '🐶', '🐱', '🐻', '🐰', '🦁',
     '🐸', '🐷', '🐼', '🐨', '🦄', '🌺', '🌸', '🌻', '🌷', '🌹',
     '🍓', '🍌', '🍇', '🍊', '🍉', '🍑', '🥝', '🍒', '🥕', '🌽',
     '🍞', '🧀', '🍕', '🍔', '🍟', '🍰', '🍭', '🍬', '🍫', '🍪',
     '🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐'
 ];
-// SVG icons (simple shapes)
-const svgIcons = {
+const SVG_ICONS = {
     circle: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>',
     star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
     square: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="2" width="20" height="20" rx="2"/></svg>',
     triangle: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 22h20L12 2z"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'
 };
-// DOM elements
-const visualDisplay = document.getElementById('visual-display');
-const optionButtons = document.querySelectorAll('.option-btn');
-const feedbackElement = document.getElementById('feedback');
-const scoreElement = document.getElementById('score');
-// Level buttons removed - level is selected at the beginning
-// const levelButtons = document.querySelectorAll('.level-btn') as NodeListOf<HTMLButtonElement>;
-const starRatingElement = document.getElementById('star-rating');
-const totalStarsElement = document.getElementById('total-stars');
-const playerModal = document.getElementById('player-modal');
-const gameContainer = document.getElementById('game-container');
-const playerForm = document.getElementById('player-form');
-const playerNameDisplay = document.getElementById('player-name-display');
-const timerDisplay = document.getElementById('timer-display');
-const timerCard = document.getElementById('timer-card');
-const endGameModal = document.getElementById('end-game-modal');
-const endGameTitle = document.getElementById('end-game-title');
-const endTime = document.getElementById('end-time');
-const endAttempts = document.getElementById('end-attempts');
-const endCorrect = document.getElementById('end-correct');
-const endWrong = document.getElementById('end-wrong');
-const endStars = document.getElementById('end-stars');
-const backToMenuBtn = document.getElementById('back-to-menu-btn');
-const stopGameBtn = document.getElementById('stop-game-btn');
-const modalLevelButtons = document.querySelectorAll('.level-btn-modal');
-const modalTimerButtons = document.querySelectorAll('.timer-btn-modal');
-// Player data
+const SVG_COLORS = [
+    '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+    '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C'
+];
+// ============================================================================
+// STATE MANAGEMENT
+// ============================================================================
+let gameState = {
+    currentCount: 0,
+    correctAnswer: 0,
+    options: [],
+    score: 0,
+    isAnswered: false,
+    currentLevel: LEVELS[GAME_CONFIG.DEFAULT_LEVEL],
+    totalStars: 0,
+    questionStartTime: 0,
+    wrongAnswers: 0
+};
+let timerState = {
+    duration: GAME_CONFIG.DEFAULT_TIMER_MINUTES,
+    timeLeft: GAME_CONFIG.DEFAULT_TIMER_MINUTES * GAME_CONFIG.SECONDS_PER_MINUTE,
+    isRunning: false,
+    startTime: 0,
+    intervalId: null
+};
+let selectedLevel = GAME_CONFIG.DEFAULT_LEVEL;
+let selectedTimerDuration = GAME_CONFIG.DEFAULT_TIMER_MINUTES;
 let playerData = null;
-// Generate random number between min and max (inclusive)
+let gameLogicInitialized = false;
+// ============================================================================
+// DOM ELEMENTS
+// ============================================================================
+const DOM = {
+    visualDisplay: document.getElementById('visual-display'),
+    optionButtons: document.querySelectorAll('.option-btn'),
+    feedbackElement: document.getElementById('feedback'),
+    scoreElement: document.getElementById('score'),
+    starRatingElement: document.getElementById('star-rating'),
+    totalStarsElement: document.getElementById('total-stars'),
+    playerModal: document.getElementById('player-modal'),
+    gameContainer: document.getElementById('game-container'),
+    playerForm: document.getElementById('player-form'),
+    playerNameDisplay: document.getElementById('player-name-display'),
+    timerDisplay: document.getElementById('timer-display'),
+    timerCard: document.getElementById('timer-card'),
+    endGameModal: document.getElementById('end-game-modal'),
+    endGameTitle: document.getElementById('end-game-title'),
+    endTime: document.getElementById('end-time'),
+    endAttempts: document.getElementById('end-attempts'),
+    endCorrect: document.getElementById('end-correct'),
+    endWrong: document.getElementById('end-wrong'),
+    endStars: document.getElementById('end-stars'),
+    backToMenuBtn: document.getElementById('back-to-menu-btn'),
+    stopGameBtn: document.getElementById('stop-game-btn'),
+    modalLevelButtons: document.querySelectorAll('.level-btn-modal'),
+    modalTimerButtons: document.querySelectorAll('.timer-btn-modal')
+};
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
 function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
-// Shuffle array
 function shuffleArray(array) {
     const shuffled = [...array];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -84,66 +162,75 @@ function shuffleArray(array) {
     }
     return shuffled;
 }
-// Generate visual (emoji or SVG)
+function getRandomColor() {
+    return SVG_COLORS[randomInt(0, SVG_COLORS.length - 1)];
+}
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / GAME_CONFIG.SECONDS_PER_MINUTE);
+    const secs = seconds % GAME_CONFIG.SECONDS_PER_MINUTE;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+function safeGetElementById(id) {
+    return document.getElementById(id);
+}
+function safeQuerySelector(selector) {
+    return document.querySelector(selector);
+}
+// ============================================================================
+// VISUAL GENERATION
+// ============================================================================
+function calculateGridColumns(count) {
+    if (count <= GAME_CONFIG.MAX_GRID_COLS_SMALL) {
+        return count;
+    }
+    if (count <= GAME_CONFIG.MAX_GRID_COLS_MEDIUM) {
+        return GAME_CONFIG.GRID_COLS_SMALL;
+    }
+    return GAME_CONFIG.GRID_COLS_LARGE;
+}
+function createEmojiItem() {
+    const emoji = EMOJIS[randomInt(0, EMOJIS.length - 1)];
+    return `<div class="visual-item">${emoji}</div>`;
+}
+function createSvgItem() {
+    const svgKeys = Object.keys(SVG_ICONS);
+    const randomSvg = svgKeys[randomInt(0, svgKeys.length - 1)];
+    const color = getRandomColor();
+    return `<div class="visual-item" style="color: ${color}">${SVG_ICONS[randomSvg]}</div>`;
+}
 function generateVisual(count) {
-    visualDisplay.innerHTML = '';
-    // Determine grid columns based on count
-    const cols = count <= 10 ? count : count <= 25 ? 5 : 10;
-    visualDisplay.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-    // Randomly choose between emoji, SVG, or mix
-    const visualType = randomInt(0, 2); // 0: emoji, 1: SVG, 2: mix
+    if (!DOM.visualDisplay)
+        return;
+    DOM.visualDisplay.innerHTML = '';
+    const cols = calculateGridColumns(count);
+    DOM.visualDisplay.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+    const visualType = randomInt(GAME_CONFIG.VISUAL_TYPES.EMOJI, GAME_CONFIG.VISUAL_TYPES.MIX);
+    const items = [];
     for (let i = 0; i < count; i++) {
-        const item = document.createElement('div');
-        item.className = 'visual-item';
-        if (visualType === 0) {
-            // Use emoji
-            const emoji = emojis[randomInt(0, emojis.length - 1)];
-            item.textContent = emoji;
+        if (visualType === GAME_CONFIG.VISUAL_TYPES.EMOJI) {
+            items.push(createEmojiItem());
         }
-        else if (visualType === 1) {
-            // Use SVG
-            const svgKeys = Object.keys(svgIcons);
-            const randomSvg = svgKeys[randomInt(0, svgKeys.length - 1)];
-            item.innerHTML = svgIcons[randomSvg];
-            item.style.color = getRandomColor();
+        else if (visualType === GAME_CONFIG.VISUAL_TYPES.SVG) {
+            items.push(createSvgItem());
         }
         else {
-            // Mix: alternate or random
-            if (i % 2 === 0) {
-                const emoji = emojis[randomInt(0, emojis.length - 1)];
-                item.textContent = emoji;
-            }
-            else {
-                const svgKeys = Object.keys(svgIcons);
-                const randomSvg = svgKeys[randomInt(0, svgKeys.length - 1)];
-                item.innerHTML = svgIcons[randomSvg];
-                item.style.color = getRandomColor();
-            }
+            items.push(i % 2 === 0 ? createEmojiItem() : createSvgItem());
         }
-        visualDisplay.appendChild(item);
     }
+    DOM.visualDisplay.innerHTML = items.join('');
 }
-// Get random color for SVG
-function getRandomColor() {
-    const colors = [
-        '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-        '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C'
-    ];
-    return colors[randomInt(0, colors.length - 1)];
-}
-// Generate answer options (1 correct + 3 distractors)
+// ============================================================================
+// GAME LOGIC
+// ============================================================================
 function generateOptions(correctAnswer) {
     const options = [correctAnswer];
     const usedNumbers = new Set([correctAnswer]);
     const level = gameState.currentLevel;
-    // Generate 3 distractors
-    while (options.length < 4) {
+    const range = Math.max(3, Math.floor((level.max - level.min) * 0.2));
+    const min = Math.max(level.min, correctAnswer - range);
+    const max = Math.min(level.max, correctAnswer + range);
+    while (options.length < GAME_CONFIG.OPTIONS_COUNT) {
         let distractor;
-        // Make distractors more challenging but not too far off
-        // Use level range to constrain distractors
-        const range = Math.max(3, Math.floor((level.max - level.min) * 0.2));
-        const min = Math.max(level.min, correctAnswer - range);
-        const max = Math.min(level.max, correctAnswer + range);
         do {
             distractor = randomInt(min, max);
         } while (usedNumbers.has(distractor));
@@ -152,350 +239,227 @@ function generateOptions(correctAnswer) {
     }
     return shuffleArray(options);
 }
-// Update option buttons
 function updateOptions(options) {
-    optionButtons.forEach((btn, index) => {
+    DOM.optionButtons.forEach((btn, index) => {
         btn.textContent = options[index].toString();
         btn.dataset.value = options[index].toString();
         btn.classList.remove('correct', 'wrong');
         btn.disabled = false;
     });
 }
-// LocalStorage functions
-function savePlayerData() {
-    if (playerData) {
-        playerData.totalStars = gameState.totalStars;
-        playerData.lastPlayed = new Date().toISOString();
-        localStorage.setItem('playerData', JSON.stringify(playerData));
-    }
+function resetOptionButtons() {
+    DOM.optionButtons.forEach(btn => {
+        btn.classList.remove('correct', 'wrong');
+        btn.disabled = false;
+    });
 }
-function loadPlayerData() {
-    const saved = localStorage.getItem('playerData');
-    if (saved) {
-        try {
-            return JSON.parse(saved);
+function disableOptionButtons() {
+    DOM.optionButtons.forEach(btn => {
+        btn.disabled = true;
+    });
+}
+function markCorrectAnswer(correctValue) {
+    DOM.optionButtons.forEach(btn => {
+        if (parseInt(btn.dataset.value || '0') === correctValue) {
+            btn.classList.add('correct');
         }
-        catch (e) {
-            console.error('Error loading player data:', e);
-            return null;
+    });
+}
+function markWrongAnswer(selectedValue) {
+    DOM.optionButtons.forEach(btn => {
+        if (parseInt(btn.dataset.value || '0') === selectedValue) {
+            btn.classList.add('wrong');
         }
-    }
-    return null;
+    });
 }
-function createPlayerData(name) {
-    return {
-        name: name,
-        totalStars: 0,
-        lastPlayed: new Date().toISOString()
-    };
+function nextQuestion() {
+    const level = gameState.currentLevel;
+    gameState.currentCount = randomInt(level.min, level.max);
+    gameState.correctAnswer = gameState.currentCount;
+    gameState.options = generateOptions(gameState.correctAnswer);
+    gameState.isAnswered = false;
+    gameState.questionStartTime = Date.now();
+    generateVisual(gameState.currentCount);
+    updateOptions(gameState.options);
+    resetOptionButtons();
 }
-// Timer functions
-function formatTime(seconds) {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-}
-function setTimerDuration(minutes) {
-    timerState.duration = minutes;
-    timerState.timeLeft = minutes * 60;
-    if (timerDisplay) {
-        timerDisplay.textContent = formatTime(timerState.timeLeft);
-    }
-}
-function startTimer() {
-    if (timerState.isRunning)
+function setLevel(levelKey) {
+    const level = LEVELS[levelKey];
+    if (!level)
         return;
-    timerState.isRunning = true;
-    timerState.startTime = Date.now();
-    timerState.intervalId = window.setInterval(() => {
-        timerState.timeLeft--;
-        if (timerDisplay) {
-            timerDisplay.textContent = formatTime(timerState.timeLeft);
-        }
-        // Visual warning when time < 1 minute
-        if (timerCard && timerState.timeLeft <= 60) {
-            timerCard.classList.add('warning');
-        }
-        // Stop timer when time runs out
-        if (timerState.timeLeft <= 0) {
-            stopTimer();
-            endGame();
-        }
-    }, 1000);
-}
-function stopTimer() {
-    if (timerState.intervalId !== null) {
-        clearInterval(timerState.intervalId);
-        timerState.intervalId = null;
-    }
-    timerState.isRunning = false;
-    if (timerCard) {
-        timerCard.classList.remove('warning');
-    }
-}
-function resetTimer() {
-    stopTimer();
-    timerState.timeLeft = timerState.duration * 60;
-    if (timerDisplay) {
-        timerDisplay.textContent = formatTime(timerState.timeLeft);
-    }
-    if (timerCard) {
-        timerCard.classList.remove('warning');
-    }
-}
-function getGameStats() {
-    return {
-        attempts: gameState.score + gameState.wrongAnswers,
-        correct: gameState.score,
-        wrong: gameState.wrongAnswers,
-        stars: gameState.totalStars
-    };
-}
-function calculatePlayTime() {
-    if (timerState.startTime > 0) {
-        return Math.floor((Date.now() - timerState.startTime) / 1000);
-    }
-    return 0;
-}
-function showEndGameModal(isTimeUp = true) {
-    const stats = getGameStats();
-    const playTime = calculatePlayTime();
-    // Update title based on how game ended
-    if (endGameTitle) {
-        endGameTitle.textContent = isTimeUp ? '⏰ Waktu Habis!' : '⏹️ Permainan Dihentikan';
-    }
-    // Display play time
-    if (endTime) {
-        endTime.textContent = formatTime(playTime);
-    }
-    if (endAttempts) {
-        endAttempts.textContent = stats.attempts.toString();
-    }
-    if (endCorrect) {
-        endCorrect.textContent = stats.correct.toString();
-    }
-    if (endWrong) {
-        endWrong.textContent = stats.wrong.toString();
-    }
-    if (endStars) {
-        endStars.textContent = stats.stars.toString();
-    }
-    if (endGameModal) {
-        endGameModal.style.display = 'flex';
-    }
-}
-function endGame() {
-    stopTimer();
-    showEndGameModal(true);
-    // Disable all buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = true;
-    });
-}
-function stopGame() {
-    stopTimer();
-    showEndGameModal(false);
-    // Disable all buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = true;
-    });
-}
-function resetGameWithTimer(minutes) {
-    // Stop current timer if running
-    stopTimer();
-    // Reset timer
-    setTimerDuration(minutes);
-    resetTimer();
-    // Reset game state
+    gameState.currentLevel = level;
     gameState.score = 0;
     gameState.wrongAnswers = 0;
     gameState.totalStars = 0;
-    if (scoreElement) {
-        scoreElement.textContent = '0';
+    if (DOM.scoreElement) {
+        DOM.scoreElement.textContent = '0';
+        DOM.scoreElement.classList.remove('updated');
     }
-    if (totalStarsElement) {
-        totalStarsElement.textContent = '0';
+    if (DOM.totalStarsElement) {
+        DOM.totalStarsElement.textContent = '0';
+        DOM.totalStarsElement.classList.remove('updated');
     }
-    // Hide end game modal
-    if (endGameModal) {
-        endGameModal.style.display = 'none';
+    if (!timerState.isRunning) {
+        resetTimer();
     }
-    // Re-enable buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = false;
-        btn.classList.remove('correct', 'wrong');
-    });
-    // Start new question
     nextQuestion();
-    // Timer will start when user answers first question
 }
-// Update stat value with animation
+// ============================================================================
+// FEEDBACK & ANIMATIONS
+// ============================================================================
 function updateStatValue(element, newValue) {
     element.textContent = newValue;
     element.classList.add('updated');
     setTimeout(() => {
         element.classList.remove('updated');
-    }, 500);
+    }, GAME_CONFIG.STAT_ANIMATION_DURATION);
 }
-// Show feedback
 function showFeedback(isCorrect) {
-    feedbackElement.classList.remove('hidden', 'correct', 'wrong');
-    if (isCorrect) {
-        feedbackElement.textContent = '🎉 Benar! Bagus sekali!';
-        feedbackElement.classList.add('correct');
-    }
-    else {
-        feedbackElement.textContent = '😔 Belum tepat, coba lagi!';
-        feedbackElement.classList.add('wrong');
-    }
-    // Hide feedback after 2 seconds
+    if (!DOM.feedbackElement)
+        return;
+    DOM.feedbackElement.classList.remove('hidden', 'correct', 'wrong');
+    DOM.feedbackElement.textContent = isCorrect
+        ? FEEDBACK_MESSAGES.CORRECT
+        : FEEDBACK_MESSAGES.WRONG;
+    DOM.feedbackElement.classList.add(isCorrect ? 'correct' : 'wrong');
     setTimeout(() => {
-        feedbackElement.classList.add('hidden');
-    }, 2000);
+        DOM.feedbackElement.classList.add('hidden');
+    }, GAME_CONFIG.FEEDBACK_DISPLAY_DURATION);
 }
-// Calculate star rating based on response time
 function calculateStarRating() {
     const responseTime = Date.now() - gameState.questionStartTime;
-    const level = gameState.currentLevel;
-    // Base time thresholds (in milliseconds)
-    // Easy: 10 seconds, Medium: 15 seconds, Hard: 20 seconds, Extreme: 25 seconds
-    const timeThresholds = {
-        easy: { three: 5000, two: 10000 },
-        medium: { three: 7000, two: 15000 },
-        hard: { three: 10000, two: 20000 },
-        extreme: { three: 12000, two: 25000 }
-    };
-    const thresholds = timeThresholds[level.name.toLowerCase()] || timeThresholds.easy;
-    if (responseTime <= thresholds.three) {
-        return 3; // ⭐⭐⭐
-    }
-    else if (responseTime <= thresholds.two) {
-        return 2; // ⭐⭐
-    }
-    else {
-        return 1; // ⭐
-    }
+    const levelName = gameState.currentLevel.name.toLowerCase();
+    const thresholds = STAR_RATING_THRESHOLDS[levelName]
+        || STAR_RATING_THRESHOLDS.easy;
+    if (responseTime <= thresholds.three)
+        return 3;
+    if (responseTime <= thresholds.two)
+        return 2;
+    return 1;
 }
-// Show star rating with animation
-function showStarRating(rating) {
-    starRatingElement.classList.remove('hidden');
-    const stars = starRatingElement.querySelectorAll('.star');
-    // Reset all stars
+function resetStarDisplay() {
+    if (!DOM.starRatingElement)
+        return;
+    const stars = DOM.starRatingElement.querySelectorAll('.star');
     stars.forEach(star => {
         star.classList.remove('active', 'animate');
         star.style.opacity = '0.3';
     });
-    // Animate stars one by one
+}
+function animateStars(rating) {
+    if (!DOM.starRatingElement)
+        return;
+    const stars = DOM.starRatingElement.querySelectorAll('.star');
+    resetStarDisplay();
     for (let i = 0; i < rating; i++) {
         setTimeout(() => {
             stars[i].classList.add('active', 'animate');
             stars[i].style.opacity = '1';
-        }, i * 200); // Stagger animation
+        }, i * GAME_CONFIG.STAR_ANIMATION_DELAY);
     }
-    // Update total stars
-    gameState.totalStars += rating;
-    updateStatValue(totalStarsElement, gameState.totalStars.toString());
-    // Save to localStorage
-    savePlayerData();
-    // Hide stars after 2.5 seconds
-    setTimeout(() => {
-        starRatingElement.classList.add('hidden');
-        stars.forEach(star => {
-            star.classList.remove('active', 'animate');
-            star.style.opacity = '0.3';
-        });
-    }, 2500);
 }
-// Play applause sound
+function showStarRating(rating) {
+    if (!DOM.starRatingElement)
+        return;
+    DOM.starRatingElement.classList.remove('hidden');
+    animateStars(rating);
+    gameState.totalStars += rating;
+    if (DOM.totalStarsElement) {
+        updateStatValue(DOM.totalStarsElement, gameState.totalStars.toString());
+    }
+    savePlayerData();
+    setTimeout(() => {
+        DOM.starRatingElement.classList.add('hidden');
+        resetStarDisplay();
+    }, GAME_CONFIG.STAR_DISPLAY_DURATION);
+}
+// ============================================================================
+// AUDIO & SOUNDS
+// ============================================================================
 function playCelebrationSound() {
-    // Check if browser supports Web Audio API
-    if (typeof AudioContext !== 'undefined' || typeof window.webkitAudioContext !== 'undefined') {
-        try {
-            const AudioContextClass = AudioContext || window.webkitAudioContext;
-            const audioContext = new AudioContextClass();
-            // Create applause sound using multiple claps
-            const duration = 1.5; // 1.5 seconds
-            const sampleRate = audioContext.sampleRate;
-            const buffer = audioContext.createBuffer(2, sampleRate * duration, sampleRate);
-            // Generate multiple claps (applause)
-            const numClaps = 8;
-            for (let clap = 0; clap < numClaps; clap++) {
-                const clapTime = (clap / numClaps) * duration + Math.random() * 0.1;
-                const clapSample = Math.floor(clapTime * sampleRate);
-                // Each clap is a short burst of noise
-                const clapDuration = 0.05; // 50ms per clap
-                const clapSamples = Math.floor(clapDuration * sampleRate);
-                for (let channel = 0; channel < 2; channel++) {
-                    const channelData = buffer.getChannelData(channel);
-                    for (let i = 0; i < clapSamples && (clapSample + i) < channelData.length; i++) {
-                        const t = i / clapSamples;
-                        // Create clap sound: white noise with envelope
-                        const noise = (Math.random() * 2 - 1) * (1 - t); // Decay envelope
-                        channelData[clapSample + i] += noise * 0.3;
-                    }
+    if (typeof AudioContext === 'undefined' && typeof window.webkitAudioContext === 'undefined') {
+        return;
+    }
+    try {
+        const AudioContextClass = AudioContext || window.webkitAudioContext;
+        const audioContext = new AudioContextClass();
+        const sampleRate = audioContext.sampleRate;
+        const buffer = audioContext.createBuffer(2, sampleRate * AUDIO_CONFIG.APPLAUSE_DURATION, sampleRate);
+        for (let clap = 0; clap < AUDIO_CONFIG.NUM_CLAPS; clap++) {
+            const clapTime = (clap / AUDIO_CONFIG.NUM_CLAPS) * AUDIO_CONFIG.APPLAUSE_DURATION
+                + Math.random() * 0.1;
+            const clapSample = Math.floor(clapTime * sampleRate);
+            const clapSamples = Math.floor(AUDIO_CONFIG.CLAP_DURATION * sampleRate);
+            for (let channel = 0; channel < 2; channel++) {
+                const channelData = buffer.getChannelData(channel);
+                for (let i = 0; i < clapSamples && (clapSample + i) < channelData.length; i++) {
+                    const t = i / clapSamples;
+                    const noise = (Math.random() * 2 - 1) * (1 - t);
+                    channelData[clapSample + i] += noise * 0.3;
                 }
             }
-            // Play the applause
-            const source = audioContext.createBufferSource();
-            source.buffer = buffer;
-            // Add gain node for volume control
-            const gainNode = audioContext.createGain();
-            gainNode.gain.value = 0.5;
-            source.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-            source.start(0);
-            // Clean up after playback
-            source.onended = () => {
-                audioContext.close();
-            };
         }
-        catch (error) {
-            console.log('Audio playback error:', error);
-        }
-    }
-}
-// Play wrong answer sound
-function playWrongAnswerSound() {
-    // Check if browser supports speech synthesis
-    if ('speechSynthesis' in window) {
-        const messages = ['Oops, coba lagi!', 'Hampir benar, coba sekali lagi'];
-        const randomMessage = messages[randomInt(0, messages.length - 1)];
-        const speak = () => {
-            const utterance = new SpeechSynthesisUtterance(randomMessage);
-            utterance.volume = 0.8;
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
-            // Use Indonesian voice if available, otherwise use default
-            const voices = speechSynthesis.getVoices();
-            const indonesianVoice = voices.find(voice => voice.lang.includes('id') || voice.lang.includes('ID'));
-            if (indonesianVoice) {
-                utterance.voice = indonesianVoice;
-            }
-            speechSynthesis.speak(utterance);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        const gainNode = audioContext.createGain();
+        gainNode.gain.value = AUDIO_CONFIG.GAIN_VALUE;
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        source.start(0);
+        source.onended = () => {
+            audioContext.close();
         };
-        // Ensure voices are loaded
-        if (speechSynthesis.getVoices().length > 0) {
-            speak();
-        }
-        else {
-            speechSynthesis.addEventListener('voiceschanged', speak, { once: true });
-        }
+    }
+    catch (error) {
+        console.error('Audio playback error:', error);
     }
 }
-// Trigger confetti
+function playWrongAnswerSound() {
+    if (!('speechSynthesis' in window))
+        return;
+    const messages = SPEECH_MESSAGES;
+    const randomMessage = messages[randomInt(0, messages.length - 1)];
+    const speak = () => {
+        const utterance = new SpeechSynthesisUtterance(randomMessage);
+        utterance.volume = AUDIO_CONFIG.SPEECH_VOLUME;
+        utterance.rate = AUDIO_CONFIG.SPEECH_RATE;
+        utterance.pitch = AUDIO_CONFIG.SPEECH_PITCH;
+        const voices = speechSynthesis.getVoices();
+        const indonesianVoice = voices.find(voice => voice.lang.includes('id') || voice.lang.includes('ID'));
+        if (indonesianVoice) {
+            utterance.voice = indonesianVoice;
+        }
+        speechSynthesis.speak(utterance);
+    };
+    if (speechSynthesis.getVoices().length > 0) {
+        speak();
+    }
+    else {
+        speechSynthesis.addEventListener('voiceschanged', speak, { once: true });
+    }
+}
+// ============================================================================
+// CONFETTI
+// ============================================================================
 function triggerConfetti() {
-    const duration = 3000;
+    const duration = CONFETTI_CONFIG.DURATION;
     const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+    const defaults = {
+        startVelocity: CONFETTI_CONFIG.START_VELOCITY,
+        spread: CONFETTI_CONFIG.SPREAD,
+        ticks: CONFETTI_CONFIG.TICKS,
+        zIndex: CONFETTI_CONFIG.Z_INDEX
+    };
     function randomInRange(min, max) {
         return Math.random() * (max - min) + min;
     }
     const interval = setInterval(() => {
         const timeLeft = animationEnd - Date.now();
         if (timeLeft <= 0) {
-            return clearInterval(interval);
+            clearInterval(interval);
+            return;
         }
-        const particleCount = 50 * (timeLeft / duration);
+        const particleCount = CONFETTI_CONFIG.PARTICLE_MULTIPLIER * (timeLeft / duration);
         // @ts-ignore - confetti is loaded from CDN
         confetti({
             ...defaults,
@@ -508,259 +472,366 @@ function triggerConfetti() {
             particleCount,
             origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }
         });
-    }, 250);
+    }, CONFETTI_CONFIG.INTERVAL);
 }
-// Check answer
+// ============================================================================
+// ANSWER HANDLING
+// ============================================================================
+function handleCorrectAnswer() {
+    gameState.score++;
+    if (DOM.scoreElement) {
+        updateStatValue(DOM.scoreElement, gameState.score.toString());
+    }
+    showFeedback(true);
+    triggerConfetti();
+    playCelebrationSound();
+    const starRating = calculateStarRating();
+    showStarRating(starRating);
+    setTimeout(() => {
+        nextQuestion();
+    }, GAME_CONFIG.NEXT_QUESTION_DELAY);
+}
+function handleWrongAnswer(selectedValue) {
+    gameState.wrongAnswers++;
+    showFeedback(false);
+    playWrongAnswerSound();
+    setTimeout(() => {
+        gameState.isAnswered = false;
+        resetOptionButtons();
+    }, GAME_CONFIG.FEEDBACK_DISPLAY_DURATION);
+}
 function checkAnswer(selectedValue) {
     if (gameState.isAnswered)
         return;
-    // Start timer on first answer
     if (!timerState.isRunning && timerState.timeLeft > 0) {
         startTimer();
     }
     gameState.isAnswered = true;
     const isCorrect = selectedValue === gameState.correctAnswer;
-    // Disable all buttons
-    optionButtons.forEach(btn => {
-        btn.disabled = true;
-        if (parseInt(btn.dataset.value || '0') === gameState.correctAnswer) {
-            btn.classList.add('correct');
-        }
-        if (parseInt(btn.dataset.value || '0') === selectedValue && !isCorrect) {
-            btn.classList.add('wrong');
-        }
-    });
+    disableOptionButtons();
+    markCorrectAnswer(gameState.correctAnswer);
+    if (!isCorrect) {
+        markWrongAnswer(selectedValue);
+    }
     if (isCorrect) {
-        gameState.score++;
-        updateStatValue(scoreElement, gameState.score.toString());
-        showFeedback(true);
-        triggerConfetti();
-        playCelebrationSound();
-        // Calculate and show star rating
-        const starRating = calculateStarRating();
-        showStarRating(starRating);
-        // Next question after 2.5 seconds
-        setTimeout(() => {
-            nextQuestion();
-        }, 2500);
+        handleCorrectAnswer();
     }
     else {
-        gameState.wrongAnswers++;
-        showFeedback(false);
-        playWrongAnswerSound();
-        // Re-enable after feedback
-        setTimeout(() => {
-            gameState.isAnswered = false;
-            optionButtons.forEach(btn => {
-                btn.disabled = false;
-                btn.classList.remove('correct', 'wrong');
-            });
-        }, 2000);
+        handleWrongAnswer(selectedValue);
     }
 }
-// Set level and reset game
-function setLevel(levelKey) {
-    const level = levels[levelKey];
-    if (!level)
+// ============================================================================
+// TIMER FUNCTIONS
+// ============================================================================
+function setTimerDuration(minutes) {
+    timerState.duration = minutes;
+    timerState.timeLeft = minutes * GAME_CONFIG.SECONDS_PER_MINUTE;
+    if (DOM.timerDisplay) {
+        DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+}
+function startTimer() {
+    if (timerState.isRunning)
         return;
-    gameState.currentLevel = level;
+    timerState.isRunning = true;
+    timerState.startTime = Date.now();
+    timerState.intervalId = window.setInterval(() => {
+        timerState.timeLeft--;
+        if (DOM.timerDisplay) {
+            DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
+        }
+        if (DOM.timerCard && timerState.timeLeft <= GAME_CONFIG.TIMER_WARNING_THRESHOLD) {
+            DOM.timerCard.classList.add('warning');
+        }
+        if (timerState.timeLeft <= 0) {
+            stopTimer();
+            endGame();
+        }
+    }, GAME_CONFIG.TIMER_UPDATE_INTERVAL);
+}
+function stopTimer() {
+    if (timerState.intervalId !== null) {
+        clearInterval(timerState.intervalId);
+        timerState.intervalId = null;
+    }
+    timerState.isRunning = false;
+    if (DOM.timerCard) {
+        DOM.timerCard.classList.remove('warning');
+    }
+}
+function resetTimer() {
+    stopTimer();
+    timerState.timeLeft = timerState.duration * GAME_CONFIG.SECONDS_PER_MINUTE;
+    if (DOM.timerDisplay) {
+        DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
+    }
+    if (DOM.timerCard) {
+        DOM.timerCard.classList.remove('warning');
+    }
+}
+function calculatePlayTime() {
+    if (timerState.startTime > 0) {
+        return Math.floor((Date.now() - timerState.startTime) / 1000);
+    }
+    return 0;
+}
+// ============================================================================
+// LOCAL STORAGE
+// ============================================================================
+function savePlayerData() {
+    if (!playerData)
+        return;
+    playerData.totalStars = gameState.totalStars;
+    playerData.lastPlayed = new Date().toISOString();
+    try {
+        localStorage.setItem(GAME_CONFIG.STORAGE_KEY, JSON.stringify(playerData));
+    }
+    catch (error) {
+        console.error('Error saving player data:', error);
+    }
+}
+function loadPlayerData() {
+    try {
+        const saved = localStorage.getItem(GAME_CONFIG.STORAGE_KEY);
+        if (!saved)
+            return null;
+        return JSON.parse(saved);
+    }
+    catch (error) {
+        console.error('Error loading player data:', error);
+        return null;
+    }
+}
+function createPlayerData(name) {
+    return {
+        name: name.trim(),
+        totalStars: 0,
+        lastPlayed: new Date().toISOString()
+    };
+}
+// ============================================================================
+// GAME STATISTICS
+// ============================================================================
+function getGameStats() {
+    return {
+        attempts: gameState.score + gameState.wrongAnswers,
+        correct: gameState.score,
+        wrong: gameState.wrongAnswers,
+        stars: gameState.totalStars
+    };
+}
+function showEndGameModal(isTimeUp = true) {
+    const stats = getGameStats();
+    const playTime = calculatePlayTime();
+    if (DOM.endGameTitle) {
+        DOM.endGameTitle.textContent = isTimeUp
+            ? END_GAME_TITLES.TIME_UP
+            : END_GAME_TITLES.STOPPED;
+    }
+    if (DOM.endTime) {
+        DOM.endTime.textContent = formatTime(playTime);
+    }
+    if (DOM.endAttempts) {
+        DOM.endAttempts.textContent = stats.attempts.toString();
+    }
+    if (DOM.endCorrect) {
+        DOM.endCorrect.textContent = stats.correct.toString();
+    }
+    if (DOM.endWrong) {
+        DOM.endWrong.textContent = stats.wrong.toString();
+    }
+    if (DOM.endStars) {
+        DOM.endStars.textContent = stats.stars.toString();
+    }
+    if (DOM.endGameModal) {
+        DOM.endGameModal.style.display = 'flex';
+    }
+}
+function endGame() {
+    stopTimer();
+    showEndGameModal(true);
+    disableOptionButtons();
+}
+function stopGame() {
+    stopTimer();
+    showEndGameModal(false);
+    disableOptionButtons();
+}
+function resetGameWithTimer(minutes) {
+    stopTimer();
+    setTimerDuration(minutes);
+    resetTimer();
     gameState.score = 0;
     gameState.wrongAnswers = 0;
-    // Reset stars when starting new game (don't load from localStorage)
     gameState.totalStars = 0;
-    scoreElement.textContent = '0';
-    totalStarsElement.textContent = '0';
-    scoreElement.classList.remove('updated');
-    totalStarsElement.classList.remove('updated');
-    // Note: Level buttons are removed from game container
-    // Level is set at the beginning and cannot be changed during game
-    // Reset timer if not running
-    if (!timerState.isRunning) {
-        resetTimer();
+    if (DOM.scoreElement) {
+        DOM.scoreElement.textContent = '0';
     }
-    // Generate new question with new level
+    if (DOM.totalStarsElement) {
+        DOM.totalStarsElement.textContent = '0';
+    }
+    if (DOM.endGameModal) {
+        DOM.endGameModal.style.display = 'none';
+    }
+    resetOptionButtons();
     nextQuestion();
 }
-// Generate new question
-function nextQuestion() {
-    const level = gameState.currentLevel;
-    gameState.currentCount = randomInt(level.min, level.max);
-    gameState.correctAnswer = gameState.currentCount;
-    gameState.options = generateOptions(gameState.correctAnswer);
-    gameState.isAnswered = false;
-    gameState.questionStartTime = Date.now(); // Start timer for star rating
-    generateVisual(gameState.currentCount);
-    updateOptions(gameState.options);
-    // Reset button states
-    optionButtons.forEach(btn => {
-        btn.classList.remove('correct', 'wrong');
-        btn.disabled = false;
-    });
-}
-// Reset player form
+// ============================================================================
+// FORM HANDLING
+// ============================================================================
 function resetPlayerForm() {
-    const nameInput = document.getElementById('player-name');
+    const nameInput = safeGetElementById('player-name');
     if (nameInput) {
         nameInput.value = '';
     }
-    // Reset level selection to default (Easy)
-    modalLevelButtons.forEach(btn => {
+    DOM.modalLevelButtons.forEach(btn => {
         btn.classList.remove('active');
     });
-    const defaultLevelBtn = document.getElementById('modal-level-easy');
+    const defaultLevelBtn = safeGetElementById('modal-level-easy');
     if (defaultLevelBtn) {
         defaultLevelBtn.classList.add('active');
     }
-    selectedLevel = 'easy';
-    // Reset timer selection to default (5 minutes)
-    if (modalTimerButtons.length > 0) {
-        modalTimerButtons.forEach(btn => {
-            btn.classList.remove('active');
-        });
-        const defaultTimerBtn = document.getElementById('modal-timer-5');
-        if (defaultTimerBtn) {
-            defaultTimerBtn.classList.add('active');
-        }
-        selectedTimerDuration = 5;
+    selectedLevel = GAME_CONFIG.DEFAULT_LEVEL;
+    DOM.modalTimerButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const defaultTimerBtn = safeGetElementById('modal-timer-5');
+    if (defaultTimerBtn) {
+        defaultTimerBtn.classList.add('active');
     }
+    selectedTimerDuration = GAME_CONFIG.DEFAULT_TIMER_MINUTES;
 }
-// Back to main menu
 function backToMainMenu() {
-    // Stop timer
     stopTimer();
-    // Reset game state
     gameState.score = 0;
     gameState.wrongAnswers = 0;
     gameState.isAnswered = false;
-    // Hide end game modal
-    if (endGameModal) {
-        endGameModal.style.display = 'none';
+    if (DOM.endGameModal) {
+        DOM.endGameModal.style.display = 'none';
     }
-    // Hide game container
-    if (gameContainer) {
-        gameContainer.style.display = 'none';
+    if (DOM.gameContainer) {
+        DOM.gameContainer.style.display = 'none';
     }
-    // Reset player form
     resetPlayerForm();
-    // Show player modal
-    if (playerModal) {
-        playerModal.style.display = 'flex';
+    if (DOM.playerModal) {
+        DOM.playerModal.style.display = 'flex';
     }
-    // Reset game logic initialization flag
     gameLogicInitialized = false;
 }
-// Handle player form submission
 function handlePlayerFormSubmit(event) {
     event.preventDefault();
-    const formData = new FormData(playerForm);
-    const name = formData.get('name').trim();
-    if (name) {
-        // Create or update player data
-        playerData = createPlayerData(name);
-        // Update player name display
-        if (playerNameDisplay) {
-            playerNameDisplay.textContent = name;
-        }
-        // Reset stars when starting new game session
-        gameState.totalStars = 0;
-        if (totalStarsElement) {
-            totalStarsElement.textContent = '0';
-        }
-        // Set timer duration from selected value
-        setTimerDuration(selectedTimerDuration);
-        // Save to localStorage (with reset stars)
-        savePlayerData();
-        // Hide modal and show game
-        playerModal.style.display = 'none';
-        gameContainer.style.display = 'block';
-        // Initialize game
-        initGameLogic();
-    }
-}
-// Flag to prevent duplicate event listeners
-let gameLogicInitialized = false;
-// Initialize game logic
-function initGameLogic() {
-    // Only initialize once
-    if (gameLogicInitialized)
+    const formData = new FormData(DOM.playerForm);
+    const name = formData.get('name')?.trim();
+    if (!name || name.length < GAME_CONFIG.MIN_NAME_LENGTH || name.length > GAME_CONFIG.MAX_NAME_LENGTH) {
         return;
-    gameLogicInitialized = true;
-    // Stop game button
-    if (stopGameBtn) {
-        stopGameBtn.addEventListener('click', () => {
-            stopGame();
-        });
     }
-    // End game modal timer option buttons
-    if (endGameModal) {
-        const endGameTimerOptions = endGameModal.querySelectorAll('.timer-option-btn');
-        endGameTimerOptions.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const minutes = parseInt(btn.getAttribute('data-minutes') || '10');
-                resetGameWithTimer(minutes);
-            });
-        });
+    playerData = createPlayerData(name);
+    if (DOM.playerNameDisplay) {
+        DOM.playerNameDisplay.textContent = name;
     }
-    // Back to menu button
-    if (backToMenuBtn) {
-        backToMenuBtn.addEventListener('click', () => {
-            backToMainMenu();
-        });
+    gameState.totalStars = 0;
+    if (DOM.totalStarsElement) {
+        DOM.totalStarsElement.textContent = '0';
     }
-    // ESC key handler for back to menu
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && endGameModal && endGameModal.style.display === 'flex') {
-            backToMainMenu();
-        }
+    setTimerDuration(selectedTimerDuration);
+    savePlayerData();
+    if (DOM.playerModal) {
+        DOM.playerModal.style.display = 'none';
+    }
+    if (DOM.gameContainer) {
+        DOM.gameContainer.style.display = 'block';
+    }
+    initGameLogic();
+}
+// ============================================================================
+// EVENT LISTENERS SETUP
+// ============================================================================
+function setupModalLevelButtons() {
+    DOM.modalLevelButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            DOM.modalLevelButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedLevel = btn.dataset.level || GAME_CONFIG.DEFAULT_LEVEL;
+        });
     });
-    // Add event listeners to option buttons
-    optionButtons.forEach(btn => {
+}
+function setupModalTimerButtons() {
+    DOM.modalTimerButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            DOM.modalTimerButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            selectedTimerDuration = parseInt(btn.dataset.minutes || String(GAME_CONFIG.DEFAULT_TIMER_MINUTES));
+        });
+    });
+}
+function setupGameButtons() {
+    if (DOM.stopGameBtn) {
+        DOM.stopGameBtn.addEventListener('click', stopGame);
+    }
+    if (DOM.backToMenuBtn) {
+        DOM.backToMenuBtn.addEventListener('click', backToMainMenu);
+    }
+    DOM.optionButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const value = parseInt(btn.dataset.value || '0');
             checkAnswer(value);
         });
     });
-    // Set selected level and start first question
-    setLevel(selectedLevel);
-    // Timer will start when user answers first question
 }
-// Initialize app
-function initApp() {
-    // Initialize level selection in modal
-    modalLevelButtons.forEach(btn => {
+function setupEndGameModalButtons() {
+    if (!DOM.endGameModal)
+        return;
+    const timerOptions = DOM.endGameModal.querySelectorAll('.timer-option-btn');
+    timerOptions.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Remove active class from all buttons
-            modalLevelButtons.forEach(b => b.classList.remove('active'));
-            // Add active class to clicked button
-            btn.classList.add('active');
-            // Set selected level
-            selectedLevel = btn.dataset.level || 'easy';
+            const minutes = parseInt(btn.getAttribute('data-minutes') || String(GAME_CONFIG.DEFAULT_TIMER_MINUTES));
+            resetGameWithTimer(minutes);
         });
     });
-    // Set default level (Easy) as active
-    const defaultLevelBtn = document.getElementById('modal-level-easy');
+}
+function setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && DOM.endGameModal && DOM.endGameModal.style.display === 'flex') {
+            backToMainMenu();
+        }
+    });
+}
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+function initGameLogic() {
+    if (gameLogicInitialized)
+        return;
+    gameLogicInitialized = true;
+    setupGameButtons();
+    setupEndGameModalButtons();
+    setupKeyboardShortcuts();
+    setLevel(selectedLevel);
+}
+function initApp() {
+    setupModalLevelButtons();
+    setupModalTimerButtons();
+    const defaultLevelBtn = safeGetElementById('modal-level-easy');
     if (defaultLevelBtn) {
         defaultLevelBtn.classList.add('active');
     }
-    // Check if player data exists
     const savedData = loadPlayerData();
-    // Always reset form when showing modal
     resetPlayerForm();
     if (savedData) {
-        // Load existing player data
         playerData = savedData;
         gameState.totalStars = savedData.totalStars;
-        // Update player name display if game container is visible
-        if (playerNameDisplay && gameContainer.style.display !== 'none') {
-            playerNameDisplay.textContent = savedData.name;
+        if (DOM.playerNameDisplay && DOM.gameContainer.style.display !== 'none') {
+            DOM.playerNameDisplay.textContent = savedData.name;
         }
     }
-    // Show modal
-    playerModal.style.display = 'flex';
-    // Add form submit handler
-    playerForm.addEventListener('submit', handlePlayerFormSubmit);
+    if (DOM.playerModal) {
+        DOM.playerModal.style.display = 'flex';
+    }
+    DOM.playerForm.addEventListener('submit', handlePlayerFormSubmit);
 }
-// Start app when DOM is loaded
+// ============================================================================
+// APP START
+// ============================================================================
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 }

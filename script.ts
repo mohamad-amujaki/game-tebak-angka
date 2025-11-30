@@ -80,6 +80,15 @@ const CONFETTI_CONFIG = {
 // INTERFACES & TYPES
 // ============================================================================
 
+type GameMode = 'counting' | 'addition' | 'subtraction';
+
+interface GameModeConfig {
+    name: string;
+    icon: string;
+    description: string;
+    questionTemplate: string;
+}
+
 interface Level {
     name: string;
     min: number;
@@ -115,9 +124,13 @@ interface GameState {
     score: number;
     isAnswered: boolean;
     currentLevel: Level;
+    currentMode: GameMode;
     totalStars: number;
     questionStartTime: number;
     wrongAnswers: number;
+    // For addition/subtraction modes
+    operand1?: number;
+    operand2?: number;
 }
 
 // ============================================================================
@@ -152,6 +165,29 @@ const SVG_COLORS: readonly string[] = [
     '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B739', '#E74C3C'
 ];
 
+const GAME_MODES: Record<GameMode, GameModeConfig> = {
+    counting: {
+        name: 'Tebak Angka',
+        icon: '🔢',
+        description: 'Hitung jumlah gambar',
+        questionTemplate: 'Berapa jumlahnya?'
+    },
+    addition: {
+        name: 'Penjumlahan',
+        icon: '➕',
+        description: 'Jumlahkan angka',
+        questionTemplate: 'Berapa hasil dari {a} + {b}?'
+    },
+    subtraction: {
+        name: 'Pengurangan',
+        icon: '➖',
+        description: 'Kurangi angka',
+        questionTemplate: 'Berapa hasil dari {a} - {b}?'
+    }
+} as const;
+
+const MAX_ICONS_PER_ROW = 5;
+
 // ============================================================================
 // STATE MANAGEMENT
 // ============================================================================
@@ -163,6 +199,7 @@ let gameState: GameState = {
     score: 0,
     isAnswered: false,
     currentLevel: LEVELS[GAME_CONFIG.DEFAULT_LEVEL],
+    currentMode: 'counting',
     totalStars: 0,
     questionStartTime: 0,
     wrongAnswers: 0
@@ -179,6 +216,7 @@ let timerState: TimerState = {
 
 let selectedLevel: string = GAME_CONFIG.DEFAULT_LEVEL;
 let selectedTimerDuration: number = GAME_CONFIG.DEFAULT_TIMER_MINUTES;
+let selectedGameMode: GameMode = 'counting';
 let playerData: PlayerData | null = null;
 let gameLogicInitialized = false;
 
@@ -209,7 +247,10 @@ const DOM = {
     backToMenuBtn: document.getElementById('back-to-menu-btn') as HTMLElement,
     stopGameBtn: document.getElementById('stop-game-btn') as HTMLElement,
     modalLevelButtons: document.querySelectorAll('.level-btn-modal') as NodeListOf<HTMLButtonElement>,
-    modalTimerButtons: document.querySelectorAll('.timer-btn-modal') as NodeListOf<HTMLButtonElement>
+    modalTimerButtons: document.querySelectorAll('.timer-btn-modal') as NodeListOf<HTMLButtonElement>,
+    modalGameModeButtons: document.querySelectorAll('.game-mode-btn') as NodeListOf<HTMLButtonElement>, // Will be re-queried in setupModalGameModeButtons
+    questionText: document.querySelector('.question-text') as HTMLElement,
+    gameTitle: document.querySelector('h1') as HTMLElement
 };
 
 // ============================================================================
@@ -252,13 +293,11 @@ function safeQuerySelector<T extends HTMLElement>(selector: string): T | null {
 // ============================================================================
 
 function calculateGridColumns(count: number): number {
-    if (count <= GAME_CONFIG.MAX_GRID_COLS_SMALL) {
+    // Maksimal 5 kolom per baris sesuai requirement
+    if (count <= MAX_ICONS_PER_ROW) {
         return count;
     }
-    if (count <= GAME_CONFIG.MAX_GRID_COLS_MEDIUM) {
-        return GAME_CONFIG.GRID_COLS_SMALL;
-    }
-    return GAME_CONFIG.GRID_COLS_LARGE;
+    return MAX_ICONS_PER_ROW;
 }
 
 function createEmojiItem(): string {
@@ -277,6 +316,11 @@ function generateVisual(count: number): void {
     if (!DOM.visualDisplay) return;
 
     DOM.visualDisplay.innerHTML = '';
+    // Reset display style to grid (in case it was set to flex by subtraction mode)
+    DOM.visualDisplay.style.display = 'grid';
+    DOM.visualDisplay.style.alignItems = '';
+    DOM.visualDisplay.style.justifyContent = '';
+
     const cols = calculateGridColumns(count);
     DOM.visualDisplay.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
 
@@ -299,9 +343,139 @@ function generateVisual(count: number): void {
     DOM.visualDisplay.innerHTML = items.join('');
 }
 
+function generateAdditionVisual(a: number, b: number): void {
+    if (!DOM.visualDisplay) return;
+
+    DOM.visualDisplay.innerHTML = '';
+    // Reset display style to grid (in case it was set to flex by subtraction mode)
+    DOM.visualDisplay.style.display = 'grid';
+    DOM.visualDisplay.style.alignItems = '';
+    DOM.visualDisplay.style.justifyContent = '';
+
+    const total = a + b;
+    const cols = calculateGridColumns(Math.max(a, b, total));
+    DOM.visualDisplay.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+    const visualType = randomInt(
+        GAME_CONFIG.VISUAL_TYPES.EMOJI,
+        GAME_CONFIG.VISUAL_TYPES.MIX
+    );
+
+    const items: string[] = [];
+
+    // Group A
+    for (let i = 0; i < a; i++) {
+        if (visualType === GAME_CONFIG.VISUAL_TYPES.EMOJI) {
+            items.push(createEmojiItem());
+        } else if (visualType === GAME_CONFIG.VISUAL_TYPES.SVG) {
+            items.push(createSvgItem());
+        } else {
+            items.push(i % 2 === 0 ? createEmojiItem() : createSvgItem());
+        }
+    }
+
+    // Plus sign separator
+    items.push('<div class="visual-separator" style="grid-column: 1 / -1; font-size: 2rem; font-weight: bold; color: var(--color-primary-400); padding: 10px;">+</div>');
+
+    // Group B
+    for (let i = 0; i < b; i++) {
+        if (visualType === GAME_CONFIG.VISUAL_TYPES.EMOJI) {
+            items.push(createEmojiItem());
+        } else if (visualType === GAME_CONFIG.VISUAL_TYPES.SVG) {
+            items.push(createSvgItem());
+        } else {
+            items.push((a + i) % 2 === 0 ? createEmojiItem() : createSvgItem());
+        }
+    }
+
+    DOM.visualDisplay.innerHTML = items.join('');
+}
+
+function generateSubtractionVisual(total: number, subtract: number): void {
+    if (!DOM.visualDisplay) return;
+
+    // Clear any existing content completely
+    DOM.visualDisplay.innerHTML = '';
+    // Reset grid columns for text display
+    DOM.visualDisplay.style.gridTemplateColumns = '1fr';
+    DOM.visualDisplay.style.display = 'flex';
+    DOM.visualDisplay.style.alignItems = 'center';
+    DOM.visualDisplay.style.justifyContent = 'center';
+
+    // Display subtraction as mathematical equation
+    const equationHTML = `
+        <div class="subtraction-equation" style="
+            font-size: 4rem;
+            font-weight: bold;
+            color: var(--color-text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--spacing-4);
+            padding: var(--spacing-6);
+        ">
+            <span>${total}</span>
+            <span style="color: var(--color-error-500);">-</span>
+            <span>${subtract}</span>
+            <span style="color: var(--color-primary-400);">=</span>
+            <span style="color: var(--color-primary-400);">?</span>
+        </div>
+    `;
+
+    DOM.visualDisplay.innerHTML = equationHTML;
+}
+
 // ============================================================================
-// GAME LOGIC
+// GAME LOGIC - QUESTION GENERATORS
 // ============================================================================
+
+function generateAdditionQuestion(): void {
+    const level = gameState.currentLevel;
+
+    // Generate two operands within level range
+    // Ensure result is also within level range
+    let operand1: number;
+    let operand2: number;
+    let result: number;
+
+    do {
+        operand1 = randomInt(level.min, level.max);
+        operand2 = randomInt(level.min, Math.min(level.max, level.max - operand1 + level.min));
+        result = operand1 + operand2;
+    } while (result > level.max || result < level.min);
+
+    gameState.operand1 = operand1;
+    gameState.operand2 = operand2;
+    gameState.correctAnswer = result;
+    gameState.options = generateOptions(result);
+}
+
+function generateSubtractionQuestion(): void {
+    const level = gameState.currentLevel;
+
+    // Generate subtraction question: total - subtractor = result
+    // total: angka yang akan dikurangkan (operand1)
+    // subtractor: angka yang dikurangkan (operand2)
+    // result: hasil pengurangan (correctAnswer)
+    // Ensure result >= 0 and within level range
+    let total: number;
+    let subtractor: number;
+    let result: number;
+
+    // Generate total (angka yang akan dikurangkan) within level range
+    total = randomInt(level.min, level.max);
+    // Generate subtractor (angka yang dikurangkan), must be <= total to ensure non-negative result
+    // Ensure subtractor is at least 1 to make it a valid subtraction
+    const minSubtractor = Math.max(1, level.min);
+    subtractor = randomInt(minSubtractor, total);
+    // Calculate result
+    result = total - subtractor;
+
+    gameState.operand1 = total;
+    gameState.operand2 = subtractor;
+    gameState.correctAnswer = result;
+    gameState.options = generateOptions(result);
+}
 
 function generateOptions(correctAnswer: number): number[] {
     const options: number[] = [correctAnswer];
@@ -363,15 +537,71 @@ function markWrongAnswer(selectedValue: number): void {
     });
 }
 
+function updateQuestionText(): void {
+    if (!DOM.questionText) return;
+
+    const modeConfig = GAME_MODES[gameState.currentMode];
+
+    if (gameState.currentMode === 'counting') {
+        DOM.questionText.textContent = modeConfig.questionTemplate;
+        DOM.questionText.style.display = 'block';
+    } else if (gameState.currentMode === 'addition' && gameState.operand1 !== undefined && gameState.operand2 !== undefined) {
+        DOM.questionText.textContent = modeConfig.questionTemplate
+            .replace('{a}', gameState.operand1.toString())
+            .replace('{b}', gameState.operand2.toString());
+        DOM.questionText.style.display = 'block';
+    } else if (gameState.currentMode === 'subtraction') {
+        // Hide question text for subtraction mode since visual already shows the equation
+        DOM.questionText.style.display = 'none';
+    }
+}
+
 function nextQuestion(): void {
-    const level = gameState.currentLevel;
-    gameState.currentCount = randomInt(level.min, level.max);
-    gameState.correctAnswer = gameState.currentCount;
-    gameState.options = generateOptions(gameState.correctAnswer);
     gameState.isAnswered = false;
     gameState.questionStartTime = Date.now();
 
-    generateVisual(gameState.currentCount);
+    // Clear visual display first to prevent showing old content
+    if (DOM.visualDisplay) {
+        DOM.visualDisplay.innerHTML = '';
+    }
+
+    // Generate question based on current mode
+    if (gameState.currentMode === 'counting') {
+        const level = gameState.currentLevel;
+        gameState.currentCount = randomInt(level.min, level.max);
+        gameState.correctAnswer = gameState.currentCount;
+        gameState.options = generateOptions(gameState.correctAnswer);
+        generateVisual(gameState.currentCount);
+        // Show question text for counting mode
+        if (DOM.questionText) {
+            DOM.questionText.style.display = 'block';
+        }
+    } else if (gameState.currentMode === 'addition') {
+        generateAdditionQuestion();
+        if (gameState.operand1 !== undefined && gameState.operand2 !== undefined) {
+            generateAdditionVisual(gameState.operand1, gameState.operand2);
+        }
+        // Show question text for addition mode
+        if (DOM.questionText) {
+            DOM.questionText.style.display = 'block';
+        }
+    } else if (gameState.currentMode === 'subtraction') {
+        generateSubtractionQuestion();
+        if (gameState.operand1 !== undefined && gameState.operand2 !== undefined) {
+            generateSubtractionVisual(gameState.operand1, gameState.operand2);
+        }
+        // Hide question text for subtraction mode (visual already shows the equation)
+        if (DOM.questionText) {
+            DOM.questionText.style.display = 'none';
+        }
+    } else {
+        // Show question text for other modes
+        if (DOM.questionText) {
+            DOM.questionText.style.display = 'block';
+        }
+    }
+
+    updateQuestionText();
     updateOptions(gameState.options);
     resetOptionButtons();
 }
@@ -891,6 +1121,17 @@ function resetPlayerForm(): void {
         defaultTimerBtn.classList.add('active');
     }
     selectedTimerDuration = GAME_CONFIG.DEFAULT_TIMER_MINUTES;
+
+    const gameModeButtons = document.querySelectorAll('.game-mode-btn') as NodeListOf<HTMLButtonElement>;
+    gameModeButtons.forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    const defaultModeBtn = safeGetElementById<HTMLButtonElement>('mode-counting');
+    if (defaultModeBtn) {
+        defaultModeBtn.classList.add('active');
+    }
+    selectedGameMode = 'counting';
 }
 
 function backToMainMenu(): void {
@@ -975,6 +1216,41 @@ function setupModalTimerButtons(): void {
     });
 }
 
+function setupModalGameModeButtons(): void {
+    // Re-query elements to ensure they exist
+    const gameModeButtons = document.querySelectorAll('.game-mode-btn') as NodeListOf<HTMLButtonElement>;
+
+    if (gameModeButtons.length === 0) {
+        console.warn('Game mode buttons not found');
+        return;
+    }
+
+    gameModeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            gameModeButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const mode = btn.dataset.mode as GameMode;
+            if (mode && (mode === 'counting' || mode === 'addition' || mode === 'subtraction')) {
+                selectedGameMode = mode;
+            }
+        });
+    });
+}
+
+function setGameMode(mode: GameMode): void {
+    gameState.currentMode = mode;
+    if (DOM.gameTitle) {
+        const modeConfig = GAME_MODES[mode];
+        DOM.gameTitle.textContent = `${modeConfig.icon} ${modeConfig.name}`;
+    }
+    // Don't clear visual display here if we're initializing (nextQuestion will handle it)
+    // Only clear if we're switching modes during gameplay
+    // Reset question text display
+    if (DOM.questionText) {
+        DOM.questionText.style.display = 'block';
+    }
+}
+
 function setupGameButtons(): void {
     if (DOM.stopGameBtn) {
         DOM.stopGameBtn.addEventListener('click', stopGame);
@@ -1024,16 +1300,28 @@ function initGameLogic(): void {
     setupEndGameModalButtons();
     setupKeyboardShortcuts();
 
+    // Set game mode first, then level (which calls nextQuestion)
+    setGameMode(selectedGameMode);
     setLevel(selectedLevel);
+
+    // Ensure nextQuestion is called to display the first question
+    // setLevel already calls nextQuestion, but ensure it's called after all setup
+    nextQuestion();
 }
 
 function initApp(): void {
     setupModalLevelButtons();
     setupModalTimerButtons();
+    setupModalGameModeButtons();
 
     const defaultLevelBtn = safeGetElementById<HTMLButtonElement>('modal-level-easy');
     if (defaultLevelBtn) {
         defaultLevelBtn.classList.add('active');
+    }
+
+    const defaultModeBtn = safeGetElementById<HTMLButtonElement>('mode-counting');
+    if (defaultModeBtn) {
+        defaultModeBtn.classList.add('active');
     }
 
     const savedData = loadPlayerData();

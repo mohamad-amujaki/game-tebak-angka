@@ -97,6 +97,7 @@ interface TimerState {
     timeLeft: number; // in seconds
     isRunning: boolean;
     startTime: number;
+    initialTimeLeft: number; // in seconds - untuk tracking waktu awal saat timer mulai
     intervalId: number | null;
 }
 
@@ -172,6 +173,7 @@ let timerState: TimerState = {
     timeLeft: GAME_CONFIG.DEFAULT_TIMER_MINUTES * GAME_CONFIG.SECONDS_PER_MINUTE,
     isRunning: false,
     startTime: 0,
+    initialTimeLeft: GAME_CONFIG.DEFAULT_TIMER_MINUTES * GAME_CONFIG.SECONDS_PER_MINUTE,
     intervalId: null
 };
 
@@ -666,6 +668,7 @@ function checkAnswer(selectedValue: number): void {
 function setTimerDuration(minutes: number): void {
     timerState.duration = minutes;
     timerState.timeLeft = minutes * GAME_CONFIG.SECONDS_PER_MINUTE;
+    timerState.initialTimeLeft = timerState.timeLeft;
 
     if (DOM.timerDisplay) {
         DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
@@ -677,6 +680,7 @@ function startTimer(): void {
 
     timerState.isRunning = true;
     timerState.startTime = Date.now();
+    timerState.initialTimeLeft = timerState.timeLeft; // Simpan waktu awal saat timer mulai
 
     timerState.intervalId = window.setInterval(() => {
         timerState.timeLeft--;
@@ -711,6 +715,8 @@ function stopTimer(): void {
 function resetTimer(): void {
     stopTimer();
     timerState.timeLeft = timerState.duration * GAME_CONFIG.SECONDS_PER_MINUTE;
+    timerState.initialTimeLeft = timerState.timeLeft;
+    timerState.startTime = 0;
 
     if (DOM.timerDisplay) {
         DOM.timerDisplay.textContent = formatTime(timerState.timeLeft);
@@ -722,10 +728,20 @@ function resetTimer(): void {
 }
 
 function calculatePlayTime(): number {
-    if (timerState.startTime > 0) {
+    // Timer belum pernah dimulai (user belum menjawab pertanyaan pertama)
+    if (timerState.startTime === 0) {
+        return 0;
+    }
+
+    // Timer sedang berjalan: hitung waktu yang sudah berlalu dari startTime
+    if (timerState.isRunning) {
         return Math.floor((Date.now() - timerState.startTime) / 1000);
     }
-    return 0;
+
+    // Timer sudah berhenti: hitung dari initialTimeLeft - timeLeft
+    // Ini lebih akurat karena sinkron dengan countdown timer
+    const elapsed = timerState.initialTimeLeft - timerState.timeLeft;
+    return Math.max(0, elapsed);
 }
 
 // ============================================================================
